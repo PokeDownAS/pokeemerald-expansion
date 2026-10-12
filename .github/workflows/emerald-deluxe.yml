@@ -19,11 +19,12 @@ jobs:
           python3 tools/emerald_deluxe/route_variety.py
           python3 tools/emerald_deluxe/trainer_progression_fix.py
           python3 tools/emerald_deluxe/bailey_player.py
+          python3 tools/emerald_deluxe/fix_bailey_side_facing.py
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends binutils-arm-none-eabi gcc-arm-none-eabi libnewlib-arm-none-eabi libpng-dev python3
+          sudo apt-get install -y --no-install-recommends binutils-arm-none-eabi gcc-arm-none-eabi libnewlib-arm-none-eabi libpng-dev python3-pil python3
 
       - name: Build Emerald Deluxe
         env:
