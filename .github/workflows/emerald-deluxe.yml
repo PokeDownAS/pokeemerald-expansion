@@ -1,0 +1,40 @@
+name: Emerald Deluxe Build
+
+on:
+  push:
+    branches:
+      - emerald-deluxe
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply Emerald Deluxe rebalance
+        run: python3 tools/emerald_deluxe/build_mod.py
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends binutils-arm-none-eabi gcc-arm-none-eabi libnewlib-arm-none-eabi libpng-dev python3
+
+      - name: Build Emerald Deluxe
+        env:
+          GAME_VERSION: EMERALD
+          GAME_REVISION: 0
+          GAME_LANGUAGE: ENGLISH
+          COMPARE: 0
+        run: make -j$(nproc) -O all
+
+      - name: Show ROM output
+        run: ls -lah *.gba || true
+
+      - name: Upload ROM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: emerald-deluxe-rom
+          path: '*.gba'
+          if-no-files-found: error
