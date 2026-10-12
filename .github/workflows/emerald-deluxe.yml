@@ -17,6 +17,7 @@ jobs:
         run: |
           python3 tools/emerald_deluxe/build_mod.py
           python3 tools/emerald_deluxe/trainer_progression_fix.py
+          python3 tools/emerald_deluxe/bailey_player.py
 
       - name: Install build dependencies
         run: |
