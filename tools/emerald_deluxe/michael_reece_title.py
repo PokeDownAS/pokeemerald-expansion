@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import io
 import re
+import subprocess
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -28,6 +31,20 @@ for folder in (ROOT / "src", ROOT / "data", ROOT / "include"):
                 nt = rename_strings(t)
                 if nt != t:
                     p.write_text(nt)
+
+# Restore Michael's original face/hair detail from the pre-shirt-fix sprite while
+# preserving the corrected shirt pixels below the face. The prior commit contains
+# the intended facial shading and outline.
+front_path = ROOT / "graphics/trainers/front_pics/may.png"
+original_bytes = subprocess.check_output(
+    ["git", "show", "6893594ca217b9f621b0d9bcb026e48ed34f2fd7:graphics/trainers/front_pics/may.png"],
+    cwd=ROOT,
+)
+original_front = Image.open(io.BytesIO(original_bytes)).convert("RGBA")
+current_front = Image.open(front_path).convert("RGBA")
+face_box = (20, 0, 45, 25)
+current_front.paste(original_front.crop(face_box), face_box[:2])
+current_front.save(front_path)
 
 # Put the supplied 240x160 indexed Emerald Deluxe artwork on BG0.  We retain
 # Emerald's existing title state machine, input handling, music and fades; BG0
@@ -79,4 +96,4 @@ t = t.replace('        CreatePressStartBanner(START_BANNER_X, 108);', '        /
 t = t.replace('        CreateCopyrightBanner(START_BANNER_X, 148);', '        // Stock copyright banner omitted on the custom title artwork.')
 
 p.write_text(t)
-print("Installed Michael/Reece names and Emerald Deluxe custom title-screen wiring")
+print("Installed Michael/Reece names, restored Michael face detail, and wired the Emerald Deluxe title screen")
