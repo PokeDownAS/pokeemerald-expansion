@@ -43,3 +43,5 @@ jobs:
           name: emerald-deluxe-rom
           path: '*.gba'
           if-no-files-found: error
+
+# Bailey battle back sprite revision
