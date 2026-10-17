@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SPECIES_H = ROOT / "include/constants/species.h"
 SPECIES_INFO = ROOT / "src/data/pokemon/species_info.h"
 GEN3_INFO = ROOT / "src/data/pokemon/species_info/gen_3_families.h"
-LEVELSETS = ROOT / "src/data/pokemon/level_up_learnsets/gen_3.h"
+LEVELSET_DIR = ROOT / "src/data/pokemon/level_up_learnsets"
 STARTERS = ROOT / "src/starter_choose.c"
 
 CUSTOM_SPECIES = "SPECIES_PLUSLE_ULTRA"
@@ -76,19 +76,27 @@ def patch_species_enum():
         SPECIES_H.write_text(text)
 
 
-def patch_levelup_learnset():
-    text = LEVELSETS.read_text()
-    if LEVEL_SYMBOL in text:
-        return
-    anchor = "#if P_FAMILY_PLUSLE\n"
-    if anchor not in text:
-        raise RuntimeError("Could not find Plusle learnset insertion point")
-    text = text.replace(
-        anchor,
-        "// Emerald Deluxe player-exclusive custom starter\n" + LEVEL_MOVES + "\n" + anchor,
-        1,
-    )
-    LEVELSETS.write_text(text)
+def patch_levelup_learnsets():
+    levelset_files = sorted(LEVELSET_DIR.glob("gen_*.h"))
+    if not levelset_files:
+        raise RuntimeError("Could not find generation learnset headers")
+
+    patched = 0
+    for path in levelset_files:
+        text = path.read_text()
+        if LEVEL_SYMBOL in text:
+            continue
+        anchor = "#if P_FAMILY_PLUSLE\n"
+        if anchor not in text:
+            raise RuntimeError(f"Could not find Plusle learnset insertion point in {path.name}")
+        text = text.replace(
+            anchor,
+            "// Emerald Deluxe player-exclusive custom starter\n" + LEVEL_MOVES + "\n" + anchor,
+            1,
+        )
+        path.write_text(text)
+        patched += 1
+    print(f"PlusleUltra learnset available in {len(levelset_files)} generation tables ({patched} patched).")
 
 
 def set_field(block: str, field: str, value: str):
@@ -147,7 +155,7 @@ def patch_starter():
 
 def main():
     patch_species_enum()
-    patch_levelup_learnset()
+    patch_levelup_learnsets()
     patch_species_info()
     patch_starter()
     print(
