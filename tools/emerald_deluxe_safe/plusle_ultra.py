@@ -147,10 +147,15 @@ def patch_species_info():
 
 def patch_starter():
     text = STARTERS.read_text()
-    pat = re.compile(r"^(#define\s+STARTER_MON_MIDDLE\s+).*$", re.M)
-    text2, count = pat.subn(rf"\g<1>{CUSTOM_SPECIES}", text, count=1)
+    # Current expansion defines the Emerald middle starter through FIRE_STARTER.
+    # Preserve Charmander for FRLG builds and replace only Emerald's Torchic.
+    pat = re.compile(
+        r"^(#define\s+FIRE_STARTER\s+\(IS_FRLG\s*\?\s*SPECIES_CHARMANDER\s*:\s*)SPECIES_TORCHIC(\s*\))$",
+        re.M,
+    )
+    text2, count = pat.subn(rf"\g<1>{CUSTOM_SPECIES}\2", text, count=1)
     if count != 1:
-        raise RuntimeError("Could not replace middle starter")
+        raise RuntimeError("Could not replace Emerald fire starter")
     STARTERS.write_text(text2)
 
 
