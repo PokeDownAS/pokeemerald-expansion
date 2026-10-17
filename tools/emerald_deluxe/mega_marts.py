@@ -31,7 +31,23 @@ def add_to_lists(text: str, items):
     return re.sub(r"(?m)^\tpokemartlistend$", insert + "\tpokemartlistend", text)
 
 
+def price_featured_megas():
+    # Expansion defines Mega Stones with price 0 because they are normally gifts.
+    # Give shop stones meaningful prices; stronger/later stones cost more.
+    p = ROOT / "src/data/items.h"
+    text = p.read_text()
+    changed = 0
+    for i, stone in enumerate(MEGA_STONES):
+        price = min(30000, 12000 + 1500 * i)
+        pat = re.compile(rf"(\[{re.escape(stone)}\]\s*=\s*\{{.*?\.price\s*=\s*)0(,)", re.S)
+        text, n = pat.subn(rf"\g<1>{price}\2", text, count=1)
+        changed += n
+    p.write_text(text)
+    print(f"Priced {changed} featured Mega Stones for Poké Mart sale")
+
+
 def main():
+    price_featured_megas()
     mart_files = {p.parent.name: p for p in ROOT.glob("data/maps/*_Mart/scripts.inc")}
     names = [n for n in ORDER if n in mart_files]
     names += sorted(n for n in mart_files if n not in names)
@@ -40,16 +56,17 @@ def main():
     for i, name in enumerate(names):
         p = mart_files[name]
         text = p.read_text()
-        if "ITEM_FIRE_STONE" in text and "ITEM_BEEDRILLITE" in text:
-            continue
         mega = MEGA_STONES[min(i, len(MEGA_STONES) - 1)]
+        if mega in text and all(stone in text for stone in EVOLUTION_STONES):
+            continue
         new = add_to_lists(text, EVOLUTION_STONES + [mega])
         if new != text:
             p.write_text(new)
             changed += 1
             print(f"{name}: added evolution stones + {mega}")
 
-    # Mega Ring becomes available after Norman / Balance Badge.
+    # Mega Ring becomes available after Norman / Balance Badge. Stones can be bought
+    # earlier, but cannot be activated until this story milestone.
     gym = ROOT / "data/maps/PetalburgCity_Gym/scripts.inc"
     if gym.exists():
         text = gym.read_text()
