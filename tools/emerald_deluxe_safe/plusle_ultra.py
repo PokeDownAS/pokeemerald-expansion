@@ -6,13 +6,36 @@ ROOT = Path(__file__).resolve().parents[2]
 SPECIES_H = ROOT / "include/constants/species.h"
 SPECIES_INFO = ROOT / "src/data/pokemon/species_info.h"
 GEN3_INFO = ROOT / "src/data/pokemon/species_info/gen_3_families.h"
+LEVELSETS = ROOT / "src/data/pokemon/level_up_learnsets/gen_3.h"
 STARTERS = ROOT / "src/starter_choose.c"
 
 CUSTOM_SPECIES = "SPECIES_PLUSLE_ULTRA"
-# Reuse Plusle's existing learnset tables for build-order safety. The custom
-# starter keeps its custom stats, typing, ability, identity and starter slot.
-LEVEL_SYMBOL = "sPlusleLevelUpLearnset"
+LEVEL_SYMBOL = "sPlusleUltraLevelUpLearnset"
 TEACH_SYMBOL = "sPlusleTeachableLearnset"
+
+LEVEL_MOVES = """static const struct LevelUpMove sPlusleUltraLevelUpLearnset[] = {
+    LEVEL_UP_MOVE( 1, MOVE_NUZZLE),
+    LEVEL_UP_MOVE( 1, MOVE_QUICK_ATTACK),
+    LEVEL_UP_MOVE( 5, MOVE_FAIRY_WIND),
+    LEVEL_UP_MOVE( 8, MOVE_GRASS_KNOT),
+    LEVEL_UP_MOVE(11, MOVE_SHOCK_WAVE),
+    LEVEL_UP_MOVE(14, MOVE_DRAINING_KISS),
+    LEVEL_UP_MOVE(18, MOVE_ELECTRO_BALL),
+    LEVEL_UP_MOVE(21, MOVE_MUD_SHOT),
+    LEVEL_UP_MOVE(24, MOVE_VOLT_SWITCH),
+    LEVEL_UP_MOVE(27, MOVE_WATER_PULSE),
+    LEVEL_UP_MOVE(30, MOVE_DAZZLING_GLEAM),
+    LEVEL_UP_MOVE(33, MOVE_AURA_SPHERE),
+    LEVEL_UP_MOVE(36, MOVE_DISCHARGE),
+    LEVEL_UP_MOVE(40, MOVE_SHADOW_BALL),
+    LEVEL_UP_MOVE(44, MOVE_CALM_MIND),
+    LEVEL_UP_MOVE(48, MOVE_THUNDERBOLT),
+    LEVEL_UP_MOVE(52, MOVE_MOONBLAST),
+    LEVEL_UP_MOVE(57, MOVE_ENERGY_BALL),
+    LEVEL_UP_MOVE(62, MOVE_THUNDER),
+    LEVEL_UP_END
+};
+"""
 
 
 def extract_braced_block(text: str, marker: str):
@@ -51,6 +74,21 @@ def patch_species_enum():
             raise RuntimeError("Could not find custom species insertion marker")
         text = text.replace(anchor, anchor + f"    {CUSTOM_SPECIES},\n", 1)
         SPECIES_H.write_text(text)
+
+
+def patch_levelup_learnset():
+    text = LEVELSETS.read_text()
+    if LEVEL_SYMBOL in text:
+        return
+    anchor = "#if P_FAMILY_PLUSLE\n"
+    if anchor not in text:
+        raise RuntimeError("Could not find Plusle learnset insertion point")
+    text = text.replace(
+        anchor,
+        "// Emerald Deluxe player-exclusive custom starter\n" + LEVEL_MOVES + "\n" + anchor,
+        1,
+    )
+    LEVELSETS.write_text(text)
 
 
 def set_field(block: str, field: str, value: str):
@@ -109,12 +147,13 @@ def patch_starter():
 
 def main():
     patch_species_enum()
+    patch_levelup_learnset()
     patch_species_info()
     patch_starter()
     print(
         "PlusleUltra pass: custom Electric/Fairy species added with Plusle graphics, "
-        "70/65/65/125/85/135 stats, Berserk, Plusle learnset compatibility, "
-        "and Torchic starter slot replaced."
+        "70/65/65/125/85/135 stats, Berserk, dedicated custom level-up learnset, "
+        "Plusle teachable compatibility, and Torchic starter slot replaced."
     )
 
 
