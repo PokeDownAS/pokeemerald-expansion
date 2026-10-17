@@ -57,6 +57,9 @@ jobs:
       - name: Place exploration Mega Stones
         run: python3 tools/emerald_deluxe_safe/mega_exploration.py
 
+      - name: Apply quality-of-life features
+        run: python3 tools/emerald_deluxe_safe/qol.py
+
       - name: Build
         env:
           GAME_VERSION: EMERALD
