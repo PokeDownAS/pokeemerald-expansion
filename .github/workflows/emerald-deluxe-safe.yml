@@ -27,6 +27,9 @@ jobs:
       - name: Apply dungeon forest and water encounters
         run: python3 tools/emerald_deluxe_safe/dungeon_encounters.py
 
+      - name: Guarantee full Gen 1-9 catchability
+        run: python3 tools/emerald_deluxe_safe/catchable_dex.py
+
       - name: Build
         env:
           GAME_VERSION: EMERALD
