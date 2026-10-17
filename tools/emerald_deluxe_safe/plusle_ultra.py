@@ -8,6 +8,7 @@ SPECIES_INFO = ROOT / "src/data/pokemon/species_info.h"
 GEN3_INFO = ROOT / "src/data/pokemon/species_info/gen_3_families.h"
 LEVELSET_DIR = ROOT / "src/data/pokemon/level_up_learnsets"
 STARTERS = ROOT / "src/starter_choose.c"
+BATTLE_SETUP = ROOT / "src/battle_setup.c"
 
 CUSTOM_SPECIES = "SPECIES_PLUSLE_ULTRA"
 LEVEL_SYMBOL = "sPlusleUltraLevelUpLearnset"
@@ -143,6 +144,8 @@ def patch_species_info():
 
 def patch_starter():
     text = STARTERS.read_text()
+    if CUSTOM_SPECIES in text:
+        return
     pat = re.compile(
         r"^(#define\s+FIRE_STARTER\s+\(IS_FRLG\s*\?\s*SPECIES_CHARMANDER\s*:\s*)SPECIES_TORCHIC(\s*\))$",
         re.M,
@@ -153,15 +156,52 @@ def patch_starter():
     STARTERS.write_text(text2)
 
 
+def patch_starter_initial_moves():
+    text = BATTLE_SETUP.read_text()
+    marker = "// Emerald Deluxe PlusleUltra guaranteed starting moves"
+    if marker in text:
+        return
+
+    if '#include "pokemon.h"\n' not in text:
+        include_anchor = '#include "palette.h"\n'
+        if include_anchor not in text:
+            raise RuntimeError("Could not find battle_setup include insertion point")
+        text = text.replace(include_anchor, include_anchor + '#include "pokemon.h"\n', 1)
+
+    if '#include "constants/moves.h"\n' not in text:
+        include_anchor = '#include "constants/items.h"\n'
+        if include_anchor not in text:
+            raise RuntimeError("Could not find constants include insertion point")
+        text = text.replace(include_anchor, include_anchor + '#include "constants/moves.h"\n', 1)
+
+    anchor = "    ScriptGiveMon(starterMon, 5, ITEM_NONE);\n"
+    if anchor not in text:
+        raise RuntimeError("Could not find starter ScriptGiveMon call")
+
+    forced_moves = (
+        anchor
+        + f"    {marker}\n"
+        + f"    if (starterMon == {CUSTOM_SPECIES})\n"
+        + "    {\n"
+        + "        SetMonMoveSlot(&gPlayerParty[0], MOVE_NUZZLE, 0);\n"
+        + "        SetMonMoveSlot(&gPlayerParty[0], MOVE_QUICK_ATTACK, 1);\n"
+        + "    }\n"
+    )
+    text = text.replace(anchor, forced_moves, 1)
+    BATTLE_SETUP.write_text(text)
+
+
 def main():
     patch_species_enum()
     patch_levelup_learnsets()
     patch_species_info()
     patch_starter()
+    patch_starter_initial_moves()
     print(
         "PlusleUltra pass: custom Electric/Fairy species added with Plusle graphics, "
         "70/65/65/125/85/135 stats, Berserk, dedicated custom level-up learnset, "
-        "Plusle teachable compatibility, and Torchic starter slot replaced."
+        "Plusle teachable compatibility, Torchic starter slot replaced, and "
+        "Nuzzle + Quick Attack forced onto the level-5 starter after creation."
     )
 
 
