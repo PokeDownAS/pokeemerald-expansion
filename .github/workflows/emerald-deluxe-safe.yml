@@ -24,6 +24,9 @@ jobs:
       - name: Upgrade trainer parties and movesets
         run: python3 tools/emerald_deluxe_safe/trainer_upgrade.py
 
+      - name: Hand-tune bosses and held items
+        run: python3 tools/emerald_deluxe_safe/boss_balance.py
+
       - name: Apply safe encounter variety
         run: python3 tools/emerald_deluxe_safe/encounters.py
 
