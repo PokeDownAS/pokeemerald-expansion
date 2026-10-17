@@ -76,10 +76,10 @@ def extract_braced_block(text: str, marker: str):
 def patch_species_enum():
     text = SPECIES_H.read_text()
     if CUSTOM_SPECIES not in text:
-        anchor = "SPECIES_CUSTOM_START,"
+        anchor = "    // Add any custom species between here and SPECIES_CUSTOM_END\n"
         if anchor not in text:
-            raise RuntimeError("Could not find SPECIES_CUSTOM_START")
-        text = text.replace(anchor, anchor + f"\n    {CUSTOM_SPECIES},", 1)
+            raise RuntimeError("Could not find custom species insertion marker")
+        text = text.replace(anchor, anchor + f"    {CUSTOM_SPECIES},\n", 1)
         SPECIES_H.write_text(text)
 
 
@@ -137,8 +137,6 @@ def patch_teachable_learnset():
     start, end, original = extract_braced_block(text, "sPlusleTeachableLearnset")
     cloned = original.replace("sPlusleTeachableLearnset", TEACH_SYMBOL, 1)
 
-    # Species teachable tables in expansion are move lists. Preserve Plusle's full
-    # compatibility and append our thematic coverage before the terminator/close.
     existing = set(re.findall(r"MOVE_[A-Z0-9_]+", cloned))
     moves_constants = (ROOT / "include/constants/moves.h").read_text(errors="ignore")
     additions = [m for m in EXTRA_TEACHABLE if m not in existing and m in moves_constants]
@@ -149,14 +147,12 @@ def patch_teachable_learnset():
     before = cloned[:close]
     after = cloned[close:]
 
-    # Insert immediately before a conventional learnset terminator when present.
     terminator_matches = list(re.finditer(r"^\s*(?:MOVE_UNAVAILABLE|MOVE_NONE|TEACHABLE_LEARNSET_END)\s*,?\s*$", before, re.M))
     insertion = "".join(f"    {move},\n" for move in additions)
     if terminator_matches:
         pos = terminator_matches[-1].start()
         cloned = before[:pos] + insertion + before[pos:] + after
     else:
-        # If this branch uses a plain C list without a named terminator, append to it.
         cloned = before.rstrip() + "\n" + insertion + after
 
     text = text[:end] + "\n\n// Emerald Deluxe custom starter\n" + cloned + text[end:]
@@ -198,8 +194,6 @@ def patch_species_info():
     for field, value in fields.items():
         custom = set_field(custom, field, value)
 
-    # Keep Plusle's National Dex identity, cry, sprites, animation frames, palettes,
-    # icon, footprint, overworld following graphics, and form identity exactly.
     egg_marker = "    [SPECIES_EGG] ="
     if egg_marker not in target:
         raise RuntimeError("Could not find SPECIES_EGG insertion point")
