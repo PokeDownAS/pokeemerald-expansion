@@ -8,11 +8,22 @@ LILYCOVE = ROOT / "data/maps/LilycoveCity_DepartmentStore_4F/scripts.inc"
 
 STONE_PRICE = 10000
 
+# Stronger / more centralizing Mega options are held until later badge gates.
+LATE_HINTS = {
+    "CHARIZARDITE_X", "CHARIZARDITE_Y", "GENGARITE", "KANGASKHANITE",
+    "GYARADOSITE", "MAWILITE", "MEDICHAMITE", "MANECTITE", "SALAMENCITE",
+    "METAGROSSITE", "LATIASITE", "LATIOSITE", "GARCHOMPITE", "LUCARIONITE",
+    "TYRANITARITE", "GARDEVOIRITE", "GALLADITE", "DIANCITE", "SCEPTILITE",
+    "BLAZIKENITE", "SWAMPERTITE",
+}
+VERY_LATE_HINTS = {
+    "MEWTWONITE_X", "MEWTWONITE_Y", "RAYQUAZITE", "DIANCITE",
+    "METAGROSSITE", "SALAMENCITE", "GARCHOMPITE", "TYRANITARITE",
+}
+
 
 def discover_mega_stones(items_text: str):
     stones = []
-    # Read actual item definitions rather than hard-coding a generation list. This
-    # automatically includes any Mega Stones supported by this expansion branch.
     block_re = re.compile(r"\[(ITEM_[A-Z0-9_]+)\]\s*=\s*\{(.*?)\n\s*\},", re.S)
     for match in block_re.finditer(items_text):
         item, body = match.group(1), match.group(2)
@@ -30,26 +41,67 @@ def price_mega_stones(items_text: str, stones):
     return items_text
 
 
+def split_stones(stones):
+    early, late, very_late = [], [], []
+    for item in stones:
+        key = item.replace("ITEM_", "")
+        if key in VERY_LATE_HINTS:
+            very_late.append(item)
+        elif key in LATE_HINTS:
+            late.append(item)
+        else:
+            early.append(item)
+    return early, late, very_late
+
+
+def mart_block(label, stones):
+    lines = [f"{label}:"]
+    lines += [f"\t.2byte {item}" for item in stones]
+    lines.append("\tpokemartlistend")
+    return "\n".join(lines)
+
+
 def patch_lilycove(script: str, stones):
-    marker = "LilycoveCity_DepartmentStore_4F_Pokemart_DefenseTMs:\n"
-    start = script.find(marker)
-    if start < 0:
-        raise RuntimeError("Could not find Lilycove 4F right-clerk mart")
-    end = script.find("\tpokemartlistend", start)
-    if end < 0:
-        raise RuntimeError("Could not find Lilycove mart list end")
+    early, late, very_late = split_stones(stones)
 
-    original_list = script[start + len(marker):end]
-    # Remove prior generated Mega Stone lines so the script remains idempotent.
-    original_lines = [line for line in original_list.splitlines() if not any(item in line for item in stones)]
-    stone_lines = [f"\t.2byte {item}" for item in stones]
-    new_list = "\n".join(original_lines + stone_lines) + "\n"
-    script = script[:start + len(marker)] + new_list + script[end:]
+    # Replace right-clerk script with badge-gated inventories.
+    old_clerk = re.compile(
+        r"LilycoveCity_DepartmentStore_4F_EventScript_ClerkRight::.*?\n\s*\.align 2\nLilycoveCity_DepartmentStore_4F_Pokemart_DefenseTMs:.*?\tpokemartlistend",
+        re.S,
+    )
+    new_clerk = (
+        "LilycoveCity_DepartmentStore_4F_EventScript_ClerkRight::\n"
+        "\tlock\n"
+        "\tfaceplayer\n"
+        "\tmessage gText_HowMayIServeYou\n"
+        "\twaitmessage\n"
+        "\tgoto_if_set FLAG_BADGE08_GET, LilycoveCity_DepartmentStore_4F_EventScript_MegaMartFinal\n"
+        "\tgoto_if_set FLAG_BADGE07_GET, LilycoveCity_DepartmentStore_4F_EventScript_MegaMartLate\n"
+        "\tpokemart LilycoveCity_DepartmentStore_4F_Pokemart_MegaEarly\n"
+        "\tgoto LilycoveCity_DepartmentStore_4F_EventScript_MegaMartFinish\n\n"
+        "LilycoveCity_DepartmentStore_4F_EventScript_MegaMartLate::\n"
+        "\tpokemart LilycoveCity_DepartmentStore_4F_Pokemart_MegaLate\n"
+        "\tgoto LilycoveCity_DepartmentStore_4F_EventScript_MegaMartFinish\n\n"
+        "LilycoveCity_DepartmentStore_4F_EventScript_MegaMartFinal::\n"
+        "\tpokemart LilycoveCity_DepartmentStore_4F_Pokemart_MegaFinal\n\n"
+        "LilycoveCity_DepartmentStore_4F_EventScript_MegaMartFinish::\n"
+        "\tmsgbox gText_PleaseComeAgain, MSGBOX_DEFAULT\n"
+        "\trelease\n"
+        "\tend\n\n"
+        "\t.align 2\n"
+        + mart_block("LilycoveCity_DepartmentStore_4F_Pokemart_MegaEarly", early)
+        + "\n\n"
+        + mart_block("LilycoveCity_DepartmentStore_4F_Pokemart_MegaLate", early + late)
+        + "\n\n"
+        + mart_block("LilycoveCity_DepartmentStore_4F_Pokemart_MegaFinal", early + late + very_late)
+    )
+    script, count = old_clerk.subn(new_clerk, script, count=1)
+    if count != 1:
+        raise RuntimeError("Could not replace Lilycove right-clerk mart")
 
-    old_gent = (
-        "LilycoveCity_DepartmentStore_4F_EventScript_Gentleman::\n"
-        "\tmsgbox LilycoveCity_DepartmentStore_4F_Text_AttackOrDefenseTM, MSGBOX_NPC\n"
-        "\tend\n"
+    old_gent = re.compile(
+        r"LilycoveCity_DepartmentStore_4F_EventScript_Gentleman::.*?LilycoveCity_DepartmentStore_4F_EventScript_GentlemanAlreadyHasRing::.*?\trelease\n\tend\n",
+        re.S,
     )
     new_gent = (
         "LilycoveCity_DepartmentStore_4F_EventScript_Gentleman::\n"
@@ -57,9 +109,14 @@ def patch_lilycove(script: str, stones):
         "\tfaceplayer\n"
         "\tcheckitem ITEM_MEGA_RING\n"
         "\tgoto_if_eq VAR_RESULT, TRUE, LilycoveCity_DepartmentStore_4F_EventScript_GentlemanAlreadyHasRing\n"
+        "\tgoto_if_unset FLAG_BADGE06_GET, LilycoveCity_DepartmentStore_4F_EventScript_GentlemanTooEarly\n"
         "\tmsgbox LilycoveCity_DepartmentStore_4F_Text_GiveMegaRing, MSGBOX_DEFAULT\n"
         "\tgiveitem ITEM_MEGA_RING\n"
         "\tgoto_if_eq VAR_RESULT, FALSE, Common_EventScript_ShowBagIsFull\n"
+        "\trelease\n"
+        "\tend\n\n"
+        "LilycoveCity_DepartmentStore_4F_EventScript_GentlemanTooEarly::\n"
+        "\tmsgbox LilycoveCity_DepartmentStore_4F_Text_MegaRingTooEarly, MSGBOX_DEFAULT\n"
         "\trelease\n"
         "\tend\n\n"
         "LilycoveCity_DepartmentStore_4F_EventScript_GentlemanAlreadyHasRing::\n"
@@ -67,25 +124,31 @@ def patch_lilycove(script: str, stones):
         "\trelease\n"
         "\tend\n"
     )
-    if old_gent in script:
-        script = script.replace(old_gent, new_gent, 1)
-    elif "LilycoveCity_DepartmentStore_4F_EventScript_GentlemanAlreadyHasRing::" not in script:
-        raise RuntimeError("Could not patch Mega Ring gift NPC")
+    script, count = old_gent.subn(new_gent, script, count=1)
+    if count != 1:
+        raise RuntimeError("Could not patch Mega Ring progression NPC")
 
+    if "LilycoveCity_DepartmentStore_4F_Text_MegaRingTooEarly:" not in script:
+        script += (
+            "\nLilycoveCity_DepartmentStore_4F_Text_MegaRingTooEarly:\n"
+            "\t.string \"Mega Evolution is powerful.\\p\"\n"
+            "\t.string \"Come back after you've proven yourself\\n\"\n"
+            "\t.string \"with six Gym Badges.$\"\n"
+        )
     if "LilycoveCity_DepartmentStore_4F_Text_GiveMegaRing:" not in script:
         script += (
             "\nLilycoveCity_DepartmentStore_4F_Text_GiveMegaRing:\n"
             "\t.string \"You've come at the right time!\\p\"\n"
             "\t.string \"This MEGA RING lets a Trainer draw out\\n\"\n"
             "\t.string \"a Pokemon's hidden Mega power.\\p\"\n"
-            "\t.string \"Take it. The clerk here stocks the\\n\"\n"
-            "\t.string \"MEGA STONES you'll need.$\"\n\n"
+            "\t.string \"Take it. The clerk's stock expands as\\n\"\n"
+            "\t.string \"you earn more Badges.$\"\n\n"
             "LilycoveCity_DepartmentStore_4F_Text_MegaStoneShop:\n"
             "\t.string \"The right-hand clerk stocks MEGA STONES.\\p\"\n"
-            "\t.string \"Have the matching Pokemon hold its stone,\\n\"\n"
-            "\t.string \"then use your MEGA RING in battle.$\"\n"
+            "\t.string \"More powerful stones appear after the\\n\"\n"
+            "\t.string \"seventh and eighth Badges.$\"\n"
         )
-    return script
+    return script, len(early), len(late), len(very_late)
 
 
 def main():
@@ -95,8 +158,9 @@ def main():
         raise RuntimeError("No Mega Stones discovered in item data")
 
     ITEMS.write_text(price_mega_stones(items_text, stones))
-    LILYCOVE.write_text(patch_lilycove(LILYCOVE.read_text(), stones))
-    print(f"Made {len(stones)} Mega Stones purchasable in Lilycove for {STONE_PRICE} each and added a free Mega Ring NPC gift.")
+    patched, early, late, very_late = patch_lilycove(LILYCOVE.read_text(), stones)
+    LILYCOVE.write_text(patched)
+    print(f"Mega progression: {early} stones at 6 badges, +{late} at 7 badges, +{very_late} at 8 badges; all priced at {STONE_PRICE}.")
 
 
 if __name__ == "__main__":
