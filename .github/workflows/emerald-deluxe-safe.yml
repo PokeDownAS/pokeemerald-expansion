@@ -6,6 +6,10 @@ on:
       - emerald-deluxe-safe
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -64,14 +68,39 @@ jobs:
         run: python3 tools/emerald_deluxe_safe/plusle_ultra.py
 
       - name: Build
+        id: build
         env:
           GAME_VERSION: EMERALD
           GAME_REVISION: 0
           GAME_LANGUAGE: ENGLISH
           COMPARE: 0
-        run: make -j$(nproc) -O all
+        run: |
+          set +e
+          make -j$(nproc) -O all 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          exit $status
+
+      - name: Report build failure
+        if: failure() && steps.build.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo 'Automated build failure report for commit `${{ github.sha }}`.'
+            echo
+            echo '```text'
+            grep -E -i '(^|: )(fatal error|error:|undefined reference|make(\[[0-9]+\])?: \*\*\*)' build.log | tail -n 120 || tail -n 120 build.log
+            echo '```'
+          } > failure.md
+          existing=$(gh issue list --state open --search 'Emerald Deluxe build failure in:title' --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file failure.md
+          else
+            gh issue create --title 'Emerald Deluxe build failure' --body-file failure.md
+          fi
 
       - name: Upload ROM artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: emerald-deluxe-safe-rom
