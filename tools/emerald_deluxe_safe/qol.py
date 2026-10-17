@@ -18,18 +18,18 @@ def set_define(text: str, name: str, value: str) -> str:
 
 
 def set_item_price(text: str, item: str, price: int) -> str:
-    # Handle both simple prices and generation-conditional item blocks by replacing
-    # the first concrete .price assignment in the item's block.
+    # Normalize every price branch in the item block. Expansion item prices may be
+    # literals, ternaries, macros, arithmetic expressions, or #if alternatives.
     block_pat = re.compile(rf"(\[{re.escape(item)}\]\s*=\s*\{{)(.*?)(\n\s*\}},)", re.S)
     m = block_pat.search(text)
     if not m:
         raise RuntimeError(f"Could not find item block for {item}")
     body = m.group(2)
-    body2, count = re.subn(r"(\.price\s*=\s*)(?:\([^\n]+\)|\d+)(\s*,)", rf"\g<1>{price}\2", body, count=1)
-    if count != 1:
-        # Conditional blocks often use several #if price assignments. Normalize all
-        # concrete assignments in the block to the QoL price.
-        body2, count = re.subn(r"(\.price\s*=\s*)\d+(\s*,)", rf"\g<1>{price}\2", body)
+    body2, count = re.subn(
+        r"(\.price\s*=\s*)[^,\n]+(\s*,)",
+        rf"\g<1>{price}\2",
+        body,
+    )
     if count < 1:
         raise RuntimeError(f"Could not set price for {item}")
     return text[:m.start()] + m.group(1) + body2 + m.group(3) + text[m.end():]
