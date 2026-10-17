@@ -4,7 +4,6 @@ import re
 
 ROOT = Path(__file__).resolve().parents[2]
 SPECIES_H = ROOT / "include/constants/species.h"
-GLOBAL_H = ROOT / "include/constants/global.h"
 SPECIES_INFO = ROOT / "src/data/pokemon/species_info.h"
 GEN3_INFO = ROOT / "src/data/pokemon/species_info/gen_3_families.h"
 LEVELSETS = ROOT / "src/data/pokemon/level_up_learnsets/gen_3.h"
@@ -77,20 +76,6 @@ def patch_species_enum():
         SPECIES_H.write_text(text)
 
 
-def patch_name_length():
-    text = GLOBAL_H.read_text()
-    text2, count = re.subn(
-        r"^(#define\s+POKEMON_NAME_LENGTH\s+)10\s*$",
-        r"\g<1>12 // Emerald Deluxe: support PlusleUltra",
-        text,
-        count=1,
-        flags=re.M,
-    )
-    if count != 1 and not re.search(r"^#define\s+POKEMON_NAME_LENGTH\s+12\b", text, re.M):
-        raise RuntimeError("Could not expand POKEMON_NAME_LENGTH")
-    GLOBAL_H.write_text(text2 if count else text)
-
-
 def patch_level_learnset():
     text = LEVELSETS.read_text()
     if LEVEL_SYMBOL in text:
@@ -130,7 +115,10 @@ def patch_species_info():
         "catchRate": "45",
         "expYield": "180",
         "abilities": "{ ABILITY_BERSERK, ABILITY_NONE, ABILITY_NONE }",
-        "speciesName": '_("PlusleUltra")',
+        # The engine's species-name buffer is 10 characters. Keep its global
+        # layout unchanged; PLUSLEULTR is the in-game species label while the
+        # code/feature name remains PlusleUltra.
+        "speciesName": '_("PlusleUltr")',
         "levelUpLearnset": LEVEL_SYMBOL,
         "teachableLearnset": TEACH_SYMBOL,
     }
@@ -161,7 +149,6 @@ def patch_starter():
 
 def main():
     patch_species_enum()
-    patch_name_length()
     patch_level_learnset()
     patch_species_info()
     patch_starter()
