@@ -1,4 +1,5 @@
 name: Emerald Deluxe Safe Build
+# Diagnostic rebuild trigger for PlusleUltra starter compile
 
 on:
   push:
