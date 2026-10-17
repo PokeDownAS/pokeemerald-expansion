@@ -36,6 +36,9 @@ jobs:
       - name: Apply easier evolutions
         run: python3 tools/emerald_deluxe_safe/easier_evolutions.py
 
+      - name: Add obtainable Mega Stones
+        run: python3 tools/emerald_deluxe_safe/mega_stones.py
+
       - name: Build
         env:
           GAME_VERSION: EMERALD
