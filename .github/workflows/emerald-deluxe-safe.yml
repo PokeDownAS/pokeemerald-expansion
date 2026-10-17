@@ -24,6 +24,9 @@ jobs:
       - name: Apply safe encounter variety
         run: python3 tools/emerald_deluxe_safe/encounters.py
 
+      - name: Apply dungeon forest and water encounters
+        run: python3 tools/emerald_deluxe_safe/dungeon_encounters.py
+
       - name: Build
         env:
           GAME_VERSION: EMERALD
