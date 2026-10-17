@@ -154,7 +154,6 @@ def main():
         old = slot["mon"]["species"]
         if route_reserved(slot["map"], slot["field"], slot["idx"]):
             continue
-        # Never erase the only existing location for a target species.
         if old in target and counts[old] <= 1:
             continue
         available.append(slot)
@@ -167,7 +166,11 @@ def main():
         for j, slot in enumerate(available):
             if j in used or slot["tier"] < min_tier:
                 continue
-            # Prefer a tier close to the Pokemon's intended progression point, then biome/method fit.
+            # Counts change as slots are rewritten. Recheck here so we never erase the
+            # final remaining wild location of a species that was already catchable.
+            old = slot["mon"]["species"]
+            if old in target and counts[old] <= 1:
+                continue
             tier_penalty = abs(slot["tier"] - min(4, info["rank"]))
             choices.append((field_score(info, slot) - 2 * tier_penalty, slot["tier"], -j, j))
         if not choices:
