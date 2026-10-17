@@ -21,6 +21,9 @@ jobs:
       - name: Apply safe trainer scaling
         run: python3 tools/emerald_deluxe_safe/level_scale.py
 
+      - name: Apply safe encounter variety
+        run: python3 tools/emerald_deluxe_safe/encounters.py
+
       - name: Build
         env:
           GAME_VERSION: EMERALD
