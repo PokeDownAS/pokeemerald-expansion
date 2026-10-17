@@ -24,7 +24,10 @@ jobs:
         run: |
           python3 tools/emerald_deluxe/build_mod.py
           python3 tools/emerald_deluxe/route_variety.py
+          python3 tools/emerald_deluxe/catchable_dex.py
           python3 tools/emerald_deluxe/trainer_progression_fix.py
+          python3 tools/emerald_deluxe/trainer_strategy.py
+          python3 tools/emerald_deluxe/mega_marts.py
           python3 tools/emerald_deluxe/bailey_player.py
           python3 tools/emerald_deluxe/fix_bailey_side_facing.py
           python3 tools/emerald_deluxe/michael_reece_title.py
