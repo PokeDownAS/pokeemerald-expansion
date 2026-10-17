@@ -4,6 +4,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[2]
 SPECIES_H = ROOT / "include/constants/species.h"
+GLOBAL_H = ROOT / "include/constants/global.h"
 SPECIES_INFO = ROOT / "src/data/pokemon/species_info.h"
 GEN3_INFO = ROOT / "src/data/pokemon/species_info/gen_3_families.h"
 LEVELSETS = ROOT / "src/data/pokemon/level_up_learnsets/gen_3.h"
@@ -84,20 +85,19 @@ def patch_species_enum():
 
 
 def patch_name_length():
-    for path in (ROOT / "include/config").glob("*.h"):
-        text = path.read_text(errors="ignore")
-        if re.search(r"^#define\s+P_LONG_POKEMON_NAMES\s+", text, re.M):
-            text2, count = re.subn(
-                r"^(#define\s+P_LONG_POKEMON_NAMES\s+).*$",
-                r"\g<1>GEN_9 // Emerald Deluxe: PlusleUltra uses an 11-character species name",
-                text,
-                count=1,
-                flags=re.M,
-            )
-            if count:
-                path.write_text(text2)
-                return
-    raise RuntimeError("Could not find P_LONG_POKEMON_NAMES config")
+    text = GLOBAL_H.read_text()
+    # PlusleUltra is 11 characters. Keep the expansion's conditional structure but
+    # make the legacy branch use the modern 12-character species-name buffer too.
+    text2, count = re.subn(
+        r"^(#define\s+POKEMON_NAME_LENGTH\s+)10\s*$",
+        r"\g<1>12 // Emerald Deluxe: support PlusleUltra",
+        text,
+        count=1,
+        flags=re.M,
+    )
+    if count != 1 and not re.search(r"^#define\s+POKEMON_NAME_LENGTH\s+12\b", text, re.M):
+        raise RuntimeError("Could not expand POKEMON_NAME_LENGTH")
+    GLOBAL_H.write_text(text2 if count else text)
 
 
 def patch_level_learnset():
