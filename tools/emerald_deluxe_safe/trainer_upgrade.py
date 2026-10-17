@@ -5,11 +5,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TRAINERS = ROOT / "src/data/trainers.party"
-
-HEADER_RE = re.compile(r"^=== (TRAINER_[A-Z0-9_]+) ===$", re.M)
+HEADER_RE = re.compile(r"^=== (TRAINER_[A-Z0-9_]+) ===$")
 LEVEL_RE = re.compile(r"^Level:\s*(\d+)\s*$", re.M)
-CLASS_RE = re.compile(r"^Class:\s*(.+?)\s*$", re.M)
-AI_RE = re.compile(r"^AI:\s*(.+?)\s*$", re.M)
 
 BOSSES = {
     "TRAINER_ROXANNE_1", "TRAINER_BRAWLY_1", "TRAINER_WATTSON_1",
@@ -18,9 +15,10 @@ BOSSES = {
     "TRAINER_PHOEBE", "TRAINER_GLACIA", "TRAINER_DRAKE", "TRAINER_WALLACE",
 }
 
-# species, low/mid/high moves. The pools are intentionally practical rather than
-# competitive-perfect: STAB first, one useful coverage move, then utility.
-POOLS = {
+# Three progression tiers per theme. Added Pokemon always receive four useful,
+# level-appropriate moves: STAB, coverage, and a little utility rather than
+# competitive-perfect optimization.
+THEMES = {
     "rock": [
         ("SPECIES_ROGGENROLA", ["MOVE_ROCK_TOMB", "MOVE_HEADBUTT", "MOVE_MUD_SLAP", "MOVE_SAND_ATTACK"]),
         ("SPECIES_BOLDORE", ["MOVE_ROCK_SLIDE", "MOVE_BULLDOZE", "MOVE_HEADBUTT", "MOVE_STEALTH_ROCK"]),
@@ -42,9 +40,9 @@ POOLS = {
         ("SPECIES_CHANDELURE", ["MOVE_FLAMETHROWER", "MOVE_SHADOW_BALL", "MOVE_ENERGY_BALL", "MOVE_WILL_O_WISP"]),
     ],
     "normal": [
-        ("SPECIES_LILLIPUP", ["MOVE_BITE", "MOVE_TACKLE", "MOVE_WORK_UP", "MOVE_SAND_ATTACK"]),
+        ("SPECIES_LILLIPUP", ["MOVE_BITE", "MOVE_HEADBUTT", "MOVE_WORK_UP", "MOVE_SAND_ATTACK"]),
         ("SPECIES_HERDIER", ["MOVE_TAKE_DOWN", "MOVE_CRUNCH", "MOVE_WORK_UP", "MOVE_ROAR"]),
-        ("SPECIES_STOUTLAND", ["MOVE_RETURN", "MOVE_CRUNCH", "MOVE_PLAY_ROUGH", "MOVE_THUNDER_FANG"]),
+        ("SPECIES_STOUTLAND", ["MOVE_BODY_SLAM", "MOVE_CRUNCH", "MOVE_PLAY_ROUGH", "MOVE_THUNDER_FANG"]),
     ],
     "flying": [
         ("SPECIES_STARLY", ["MOVE_WING_ATTACK", "MOVE_QUICK_ATTACK", "MOVE_DOUBLE_TEAM", "MOVE_ENDEAVOR"]),
@@ -96,11 +94,6 @@ POOLS = {
         ("SPECIES_DRAPION", ["MOVE_CROSS_POISON", "MOVE_CRUNCH", "MOVE_BUG_BITE", "MOVE_TOXIC_SPIKES"]),
         ("SPECIES_DRAPION", ["MOVE_POISON_JAB", "MOVE_CRUNCH", "MOVE_EARTHQUAKE", "MOVE_TOXIC_SPIKES"]),
     ],
-    "steel": [
-        ("SPECIES_ARON", ["MOVE_METAL_CLAW", "MOVE_ROCK_TOMB", "MOVE_HEADBUTT", "MOVE_MUD_SLAP"]),
-        ("SPECIES_LAIRON", ["MOVE_IRON_HEAD", "MOVE_ROCK_SLIDE", "MOVE_BULLDOZE", "MOVE_ROAR"]),
-        ("SPECIES_AGGRON", ["MOVE_IRON_HEAD", "MOVE_ROCK_SLIDE", "MOVE_EARTHQUAKE", "MOVE_THUNDER_PUNCH"]),
-    ],
     "fairy": [
         ("SPECIES_CLEFAIRY", ["MOVE_DISARMING_VOICE", "MOVE_SING", "MOVE_MAGICAL_LEAF", "MOVE_ENCORE"]),
         ("SPECIES_TOGEKISS", ["MOVE_AIR_SLASH", "MOVE_DAZZLING_GLEAM", "MOVE_AURA_SPHERE", "MOVE_THUNDER_WAVE"]),
@@ -119,11 +112,9 @@ CLASS_THEMES = [
     ("Fisherman", "water"), ("Sailor", "water"), ("Bug Catcher", "bug"),
     ("Bug Maniac", "bug"), ("Ninja Boy", "poison"), ("Hex Maniac", "ghost"),
     ("Black Belt", "fighting"), ("Battle Girl", "fighting"), ("Psychic", "psychic"),
-    ("Dragon Tamer", "dragon"), ("Aroma Lady", "grass"), ("Triathlete", "general"),
-    ("Pokefan", "fairy"), ("Team Aqua", "water"), ("Aqua", "water"),
-    ("Team Magma", "fire"), ("Magma", "fire"), ("Collector", "general"),
-    ("Cooltrainer", "general"), ("Ace Trainer", "general"), ("Youngster", "normal"),
-    ("Lass", "fairy"), ("School Kid", "general"), ("Gentleman", "normal"),
+    ("Dragon Tamer", "dragon"), ("Aroma Lady", "grass"), ("Pokefan", "fairy"),
+    ("Team Aqua", "water"), ("Aqua", "water"), ("Team Magma", "fire"),
+    ("Magma", "fire"), ("Youngster", "normal"), ("Gentleman", "normal"),
 ]
 
 BOSS_ADD = {
@@ -143,32 +134,11 @@ BOSS_ADD = {
 }
 
 
-def tier_for(level: int) -> int:
-    if level < 22:
-        return 0
-    if level < 38:
-        return 1
-    return 2
+def tier(level):
+    return 0 if level < 22 else 1 if level < 38 else 2
 
 
-def is_species_line(line: str) -> bool:
-    s = line.strip()
-    if not s or s.startswith(("- ", "===", "#", "//", "/*", "*", "*/")):
-        return False
-    if ":" in s:
-        return False
-    return True
-
-
-def species_key(line: str) -> str:
-    m = re.search(r"SPECIES_([A-Z0-9_]+)", line)
-    if m:
-        return m.group(1)
-    token = line.split("@")[0].strip().split("(")[0].strip()
-    return re.sub(r"[^A-Z0-9]", "_", token.upper())
-
-
-def choose_theme(label: str, cls: str) -> str:
+def theme_for(label, trainer_class):
     if "AQUA" in label:
         return "water"
     if "MAGMA" in label:
@@ -182,110 +152,126 @@ def choose_theme(label: str, cls: str) -> str:
     if "DRAKE" in label:
         return "dragon"
     for needle, theme in CLASS_THEMES:
-        if needle.lower() in cls.lower():
+        if needle.lower() in trainer_class.lower():
             return theme
     return "general"
 
 
-def pick_candidate(label: str, cls: str, level: int, existing: set[str]):
-    if label in BOSS_ADD and BOSS_ADD[label][0].replace("SPECIES_", "") not in existing:
-        return BOSS_ADD[label]
-
-    theme = choose_theme(label, cls)
-    tier = tier_for(level)
-    themes = [theme, "general", "normal", "flying", "water", "grass"]
-    # Deterministic rotation prevents every trainer of one class from receiving the same mon.
-    offset = int(hashlib.sha256(label.encode()).hexdigest()[:8], 16)
-    for theme_name in themes:
-        pool = POOLS[theme_name]
-        for step in range(len(pool)):
-            idx = min(2, max(0, tier + ((offset + step) % 3) - 1))
-            species, moves = pool[idx]
-            if species.replace("SPECIES_", "") not in existing:
-                return species, moves
-    return POOLS["general"][tier]
+def species_key(entry):
+    first = entry.splitlines()[0]
+    m = re.search(r"SPECIES_([A-Z0-9_]+)", first)
+    if m:
+        return m.group(1)
+    token = first.split("@")[0].strip().split("(")[0].strip()
+    return re.sub(r"[^A-Z0-9]", "_", token.upper())
 
 
-def improve_ai(block: str, first_mon_pos: int, boss: bool, max_level: int) -> str:
+def choose_addition(label, trainer_class, level, existing):
+    if label in BOSS_ADD:
+        species, moves = BOSS_ADD[label]
+        if species.replace("SPECIES_", "") not in existing:
+            return species, moves
+    theme = theme_for(label, trainer_class)
+    start = tier(level)
+    # Try the intended tier first, then nearby tiers so we do not duplicate a Pokemon
+    # already on the trainer's team.
+    for idx in [start, max(0, start - 1), min(2, start + 1)]:
+        species, moves = THEMES[theme][idx]
+        if species.replace("SPECIES_", "") not in existing:
+            return species, moves
+    # Deterministic fallback for the rare case that all three thematic choices exist.
+    idx = int(hashlib.sha256(label.encode()).hexdigest()[:4], 16) % 3
+    return THEMES["general"][idx]
+
+
+def upgrade_ai(meta, boss, level):
     wanted = ["Check Bad Move"]
-    if boss or max_level >= 24:
+    if level >= 24 or boss:
         wanted.append("Try To Faint")
     if boss:
         wanted.append("Check Viability")
 
-    m = AI_RE.search(block)
-    if m:
-        flags = [p.strip() for p in m.group(1).split("/") if p.strip()]
-        low = {f.lower() for f in flags}
-        flags.extend(w for w in wanted if w.lower() not in low)
-        return block[:m.start()] + "AI: " + " / ".join(flags) + block[m.end():]
+    ai_index = None
+    for i, line in enumerate(meta):
+        if line.startswith("AI:"):
+            ai_index = i
+            break
 
-    insert = "AI: " + " / ".join(wanted) + "\n\n"
-    return block[:first_mon_pos] + insert + block[first_mon_pos:]
+    if ai_index is None:
+        meta.append("AI: " + " / ".join(wanted))
+        return meta
+
+    flags = [x.strip() for x in meta[ai_index][3:].split("/") if x.strip()]
+    seen = {x.lower() for x in flags}
+    flags.extend(x for x in wanted if x.lower() not in seen)
+    meta[ai_index] = "AI: " + " / ".join(flags)
+    return meta
 
 
-def upgrade_block(block: str):
-    hm = HEADER_RE.search(block)
+def upgrade_block(block):
+    raw_lines = block.strip("\n").splitlines()
+    if not raw_lines:
+        return block, False, False
+    hm = HEADER_RE.match(raw_lines[0])
     if not hm or hm.group(1) == "TRAINER_NONE":
         return block, False, False
     label = hm.group(1)
-    lines = block.splitlines(keepends=True)
-    mon_indices = [i for i, line in enumerate(lines) if is_species_line(line)]
-    if not mon_indices:
+
+    # Trainer metadata ends at the first blank line. Keeping this boundary explicit
+    # prevents trainerproc's required separator from ever being swallowed by regexes.
+    try:
+        sep = raw_lines.index("")
+    except ValueError:
+        return block, False, False
+    meta = raw_lines[:sep]
+    body = "\n".join(raw_lines[sep + 1:]).strip()
+    if not body:
         return block, False, False
 
-    existing = {species_key(lines[i]) for i in mon_indices}
-    levels = [int(x) for x in LEVEL_RE.findall(block)] or [5]
+    entries = [e.strip() for e in re.split(r"\n\s*\n", body) if e.strip()]
+    if not entries:
+        return block, False, False
+
+    levels = [int(x) for x in LEVEL_RE.findall(body)] or [5]
     max_level = max(levels)
-    cls_m = CLASS_RE.search(block)
-    cls = cls_m.group(1) if cls_m else ""
-    species, moves = pick_candidate(label, cls, max_level, existing)
-    new_level = max(2, max_level if label in BOSSES else max_level - 1)
-
-    entry = [
-        f"{species}\n",
-        f"Level: {new_level}\n",
-        "IVs: 12 HP / 12 Atk / 12 Def / 12 SpA / 12 SpD / 12 Spe\n" if label not in BOSSES else
-        "IVs: 20 HP / 20 Atk / 20 Def / 20 SpA / 20 SpD / 20 Spe\n",
-    ]
-    entry += [f"- {move}\n" for move in moves]
-    entry_text = "\n" + "".join(entry)
-
-    # Six is the party cap. Full teams get their last slot replaced so every trainer
-    # still receives a genuinely new Pokemon rather than producing an invalid 7-mon party.
-    if len(mon_indices) >= 6:
-        cut_line = mon_indices[-1]
-        prefix = "".join(lines[:cut_line]).rstrip() + "\n"
-        block = prefix + entry_text
-    else:
-        block = block.rstrip() + "\n" + entry_text
-
-    # Recompute first Pokemon location after the party edit, then modestly improve AI.
-    lines2 = block.splitlines(keepends=True)
-    cursor = 0
-    first_pos = None
-    for line in lines2:
-        if is_species_line(line):
-            first_pos = cursor
+    trainer_class = ""
+    for line in meta:
+        if line.startswith("Class:"):
+            trainer_class = line.split(":", 1)[1].strip()
             break
-        cursor += len(line)
-    if first_pos is not None:
-        block = improve_ai(block, first_pos, label in BOSSES, max_level)
 
-    return block.rstrip() + "\n\n", True, label in BOSSES
+    existing = {species_key(e) for e in entries}
+    species, moves = choose_addition(label, trainer_class, max_level, existing)
+    new_level = max_level if label in BOSSES else max(2, max_level - 1)
+    iv = 20 if label in BOSSES else 12
+    new_entry = "\n".join([
+        species,
+        f"Level: {new_level}",
+        f"IVs: {iv} HP / {iv} Atk / {iv} Def / {iv} SpA / {iv} SpD / {iv} Spe",
+        *[f"- {move}" for move in moves],
+    ])
+
+    if len(entries) >= 6:
+        entries[-1] = new_entry
+    else:
+        entries.append(new_entry)
+
+    meta = upgrade_ai(meta, label in BOSSES, max_level)
+    rebuilt = "\n".join(meta) + "\n\n" + "\n\n".join(entries) + "\n\n"
+    return rebuilt, True, label in BOSSES
 
 
 def main():
     text = TRAINERS.read_text()
     parts = re.split(r"(?=^=== TRAINER_[A-Z0-9_]+ ===$)", text, flags=re.M)
-    changed = []
+    out = []
     total = bosses = 0
     for part in parts:
-        new_part, did_change, was_boss = upgrade_block(part)
-        changed.append(new_part)
-        total += int(did_change)
-        bosses += int(did_change and was_boss)
-    TRAINERS.write_text("".join(changed))
+        new_part, changed, was_boss = upgrade_block(part)
+        out.append(new_part)
+        total += int(changed)
+        bosses += int(changed and was_boss)
+    TRAINERS.write_text("".join(out))
     print(f"Upgraded {total} trainer parties with one themed new Pokemon; {bosses} major bosses received curated additions and stronger AI.")
 
 
