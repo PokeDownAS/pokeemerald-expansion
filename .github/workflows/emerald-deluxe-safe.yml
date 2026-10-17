@@ -30,6 +30,9 @@ jobs:
       - name: Upgrade rivals villains and grunts
         run: python3 tools/emerald_deluxe_safe/story_battles.py
 
+      - name: Hand-tune admins and postgame superbosses
+        run: python3 tools/emerald_deluxe_safe/admin_postgame.py
+
       - name: Apply safe encounter variety
         run: python3 tools/emerald_deluxe_safe/encounters.py
 
@@ -44,6 +47,9 @@ jobs:
 
       - name: Add obtainable Mega Stones
         run: python3 tools/emerald_deluxe_safe/mega_stones.py
+
+      - name: Place exploration Mega Stones
+        run: python3 tools/emerald_deluxe_safe/mega_exploration.py
 
       - name: Build
         env:
