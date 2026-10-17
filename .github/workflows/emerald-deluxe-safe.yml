@@ -27,6 +27,9 @@ jobs:
       - name: Hand-tune bosses and held items
         run: python3 tools/emerald_deluxe_safe/boss_balance.py
 
+      - name: Upgrade rivals villains and grunts
+        run: python3 tools/emerald_deluxe_safe/story_battles.py
+
       - name: Apply safe encounter variety
         run: python3 tools/emerald_deluxe_safe/encounters.py
 
