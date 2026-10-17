@@ -80,6 +80,14 @@ jobs:
           status=${PIPESTATUS[0]}
           exit $status
 
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emerald-deluxe-safe-build-log
+          path: build.log
+          if-no-files-found: warn
+
       - name: Report build failure
         if: failure() && steps.build.outcome == 'failure'
         env:
