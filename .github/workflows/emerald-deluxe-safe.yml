@@ -33,6 +33,9 @@ jobs:
       - name: Hand-tune admins and postgame superbosses
         run: python3 tools/emerald_deluxe_safe/admin_postgame.py
 
+      - name: Polish ordinary route trainers
+        run: python3 tools/emerald_deluxe_safe/route_trainer_polish.py
+
       - name: Apply safe encounter variety
         run: python3 tools/emerald_deluxe_safe/encounters.py
 
@@ -41,6 +44,9 @@ jobs:
 
       - name: Guarantee full Gen 1-9 catchability
         run: python3 tools/emerald_deluxe_safe/catchable_dex.py
+
+      - name: Smooth encounter progression
+        run: python3 tools/emerald_deluxe_safe/encounter_progression.py
 
       - name: Apply easier evolutions
         run: python3 tools/emerald_deluxe_safe/easier_evolutions.py
