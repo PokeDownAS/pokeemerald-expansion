@@ -8,7 +8,6 @@ LILYCOVE = ROOT / "data/maps/LilycoveCity_DepartmentStore_4F/scripts.inc"
 
 STONE_PRICE = 10000
 
-# Stronger / more centralizing Mega options are held until later badge gates.
 LATE_HINTS = {
     "CHARIZARDITE_X", "CHARIZARDITE_Y", "GENGARITE", "KANGASKHANITE",
     "GYARADOSITE", "MAWILITE", "MEDICHAMITE", "MANECTITE", "SALAMENCITE",
@@ -64,7 +63,6 @@ def mart_block(label, stones):
 def patch_lilycove(script: str, stones):
     early, late, very_late = split_stones(stones)
 
-    # Replace right-clerk script with badge-gated inventories.
     old_clerk = re.compile(
         r"LilycoveCity_DepartmentStore_4F_EventScript_ClerkRight::.*?\n\s*\.align 2\nLilycoveCity_DepartmentStore_4F_Pokemart_DefenseTMs:.*?\tpokemartlistend",
         re.S,
@@ -99,10 +97,6 @@ def patch_lilycove(script: str, stones):
     if count != 1:
         raise RuntimeError("Could not replace Lilycove right-clerk mart")
 
-    old_gent = re.compile(
-        r"LilycoveCity_DepartmentStore_4F_EventScript_Gentleman::.*?LilycoveCity_DepartmentStore_4F_EventScript_GentlemanAlreadyHasRing::.*?\trelease\n\tend\n",
-        re.S,
-    )
     new_gent = (
         "LilycoveCity_DepartmentStore_4F_EventScript_Gentleman::\n"
         "\tlock\n"
@@ -124,9 +118,24 @@ def patch_lilycove(script: str, stones):
         "\trelease\n"
         "\tend\n"
     )
-    script, count = old_gent.subn(new_gent, script, count=1)
-    if count != 1:
-        raise RuntimeError("Could not patch Mega Ring progression NPC")
+
+    # The repository stores the original gentleman script; generated versions only
+    # exist in CI workspaces. Support both so this remains repeatable.
+    original_gent = (
+        "LilycoveCity_DepartmentStore_4F_EventScript_Gentleman::\n"
+        "\tmsgbox LilycoveCity_DepartmentStore_4F_Text_AttackOrDefenseTM, MSGBOX_NPC\n"
+        "\tend\n"
+    )
+    if original_gent in script:
+        script = script.replace(original_gent, new_gent, 1)
+    else:
+        generated_gent = re.compile(
+            r"LilycoveCity_DepartmentStore_4F_EventScript_Gentleman::.*?(?=\nLilycoveCity_DepartmentStore_4F_EventScript_Woman::)",
+            re.S,
+        )
+        script, count = generated_gent.subn(new_gent.rstrip() + "\n", script, count=1)
+        if count != 1:
+            raise RuntimeError("Could not patch Mega Ring progression NPC")
 
     if "LilycoveCity_DepartmentStore_4F_Text_MegaRingTooEarly:" not in script:
         script += (
