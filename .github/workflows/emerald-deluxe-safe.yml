@@ -1,0 +1,37 @@
+name: Emerald Deluxe Safe Build
+
+on:
+  push:
+    branches:
+      - emerald-deluxe-safe
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends binutils-arm-none-eabi gcc-arm-none-eabi libnewlib-arm-none-eabi libpng-dev python3-pil python3
+
+      - name: Apply safe trainer scaling
+        run: python3 tools/emerald_deluxe_safe/level_scale.py
+
+      - name: Build
+        env:
+          GAME_VERSION: EMERALD
+          GAME_REVISION: 0
+          GAME_LANGUAGE: ENGLISH
+          COMPARE: 0
+        run: make -j$(nproc) -O all
+
+      - name: Upload ROM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: emerald-deluxe-safe-rom
+          path: '*.gba'
+          if-no-files-found: error
