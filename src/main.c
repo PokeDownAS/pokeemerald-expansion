@@ -186,26 +186,33 @@ static void UpdateLinkAndCallCallbacks(void)
 
     CallCallbacks();
 
-    // Only advance a stable single-player scene. Audio, link traffic, key repeat
-    // and the play clock still run once per outer frame.
-    if (!gSaveBlock2Ptr->optionsFastForward || gTestRunnerEnabled
-     || gMain.callback2 != scene || gMain.callback1 != input || gPaletteFade.active
-     || gLinkTransferringData || gReceivedRemoteLinkPlayers || gWirelessCommType)
-        return;
-    if (scene == BattleMainCB2)
-    {
-        if (!gMain.inBattle || (gBattleTypeFlags & (BATTLE_TYPE_LINK | BATTLE_TYPE_RECORDED)))
-            return;
-    }
-    else if (scene != CB2_Overworld || input != CB1_Overworld)
+    u32 speed = gSaveBlock2Ptr->optionsGameSpeed;
+    if (speed == OPTIONS_GAME_SPEED_1X || speed > OPTIONS_GAME_SPEED_4X || gTestRunnerEnabled)
         return;
 
-    // A tap or a menu repeat belongs to just one step. Held directions carry on.
-    gMain.newKeysRaw = 0;
-    gMain.newKeys = 0;
-    gMain.newAndRepeatedKeys = 0;
-    gIsExtraGameplayTick = TRUE;
-    CallCallbacks();
+    // Index values 0, 1 and 2 represent one, two and four ticks per frame.
+    u32 ticks = 1u << speed;
+    for (u32 i = 1; i < ticks; i++)
+    {
+        // A step can enter a menu, start a fade or switch callbacks.
+        if (gMain.callback2 != scene || gMain.callback1 != input || gPaletteFade.active
+         || gLinkTransferringData || gReceivedRemoteLinkPlayers || gWirelessCommType)
+            break;
+        if (scene == BattleMainCB2)
+        {
+            if (!gMain.inBattle || (gBattleTypeFlags & (BATTLE_TYPE_LINK | BATTLE_TYPE_RECORDED)))
+                break;
+        }
+        else if (scene != CB2_Overworld || input != CB1_Overworld)
+            break;
+
+        // A tap or a menu repeat belongs to just one step. Held directions carry on.
+        gMain.newKeysRaw = 0;
+        gMain.newKeys = 0;
+        gMain.newAndRepeatedKeys = 0;
+        gIsExtraGameplayTick = TRUE;
+        CallCallbacks();
+    }
     gIsExtraGameplayTick = FALSE;
 }
 

@@ -602,8 +602,8 @@ struct SaveBlock2
              u16 optionsBattleStyle:1; // OPTIONS_BATTLE_STYLE_[SHIFT/SET]
              u16 optionsBattleSceneOff:1; // whether battle animations are disabled
              u16 regionMapZoom:1; // whether the map is zoomed in
-             u16 optionsFastForward:1; // Run two single-player gameplay ticks per frame
-             //u16 padding1:3;
+             u16 optionsGameSpeed:2; // OPTIONS_GAME_SPEED_*; low bit preserves the original 2x setting
+             //u16 padding1:2;
              //u16 padding2;
     /*0x18*/ struct Pokedex pokedex;
     /*0x90*/ u8 filler_90[0x8];

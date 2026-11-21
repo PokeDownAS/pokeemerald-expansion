@@ -58,7 +58,7 @@ static void Task_OptionMenuProcessInput(u8 taskId);
 static void Task_OptionMenuSave(u8 taskId);
 static void Task_OptionMenuFadeOut(u8 taskId);
 static void HighlightOptionMenuItem(u8 selection);
-static u8 TextSpeed_ProcessInput(u8 selection);
+static u8 CycleThreeChoices(u8 selection);
 static void TextSpeed_DrawChoices(u8 selection);
 static u8 BattleScene_ProcessInput(u8 selection);
 static void BattleScene_DrawChoices(u8 selection);
@@ -69,7 +69,6 @@ static void Sound_DrawChoices(u8 selection);
 static void FastForward_DrawChoices(u8 selection);
 static u8 FrameType_ProcessInput(u8 selection);
 static void FrameType_DrawChoices(u8 selection);
-static u8 ButtonMode_ProcessInput(u8 selection);
 static void ButtonMode_DrawChoices(u8 selection);
 static void DrawHeaderText(void);
 static void DrawOptionMenuTexts(void);
@@ -256,7 +255,9 @@ void CB2_InitOptionMenu(void)
         gTasks[taskId].tSound = gSaveBlock2Ptr->optionsSound;
         gTasks[taskId].tButtonMode = gSaveBlock2Ptr->optionsButtonMode;
         gTasks[taskId].tWindowFrameType = gSaveBlock2Ptr->optionsWindowFrameType;
-        gTasks[taskId].tFastForward = gSaveBlock2Ptr->optionsFastForward;
+        gTasks[taskId].tFastForward = gSaveBlock2Ptr->optionsGameSpeed;
+        if (gTasks[taskId].tFastForward > OPTIONS_GAME_SPEED_4X)
+            gTasks[taskId].tFastForward = OPTIONS_GAME_SPEED_1X;
 
         TextSpeed_DrawChoices(gTasks[taskId].tTextSpeed);
         BattleScene_DrawChoices(gTasks[taskId].tBattleSceneOff);
@@ -320,7 +321,7 @@ static void Task_OptionMenuProcessInput(u8 taskId)
         {
         case MENUITEM_TEXTSPEED:
             previousOption = gTasks[taskId].tTextSpeed;
-            gTasks[taskId].tTextSpeed = TextSpeed_ProcessInput(gTasks[taskId].tTextSpeed);
+            gTasks[taskId].tTextSpeed = CycleThreeChoices(gTasks[taskId].tTextSpeed);
 
             if (previousOption != gTasks[taskId].tTextSpeed)
                 TextSpeed_DrawChoices(gTasks[taskId].tTextSpeed);
@@ -348,7 +349,7 @@ static void Task_OptionMenuProcessInput(u8 taskId)
             break;
         case MENUITEM_BUTTONMODE:
             previousOption = gTasks[taskId].tButtonMode;
-            gTasks[taskId].tButtonMode = ButtonMode_ProcessInput(gTasks[taskId].tButtonMode);
+            gTasks[taskId].tButtonMode = CycleThreeChoices(gTasks[taskId].tButtonMode);
 
             if (previousOption != gTasks[taskId].tButtonMode)
                 ButtonMode_DrawChoices(gTasks[taskId].tButtonMode);
@@ -361,12 +362,10 @@ static void Task_OptionMenuProcessInput(u8 taskId)
                 FrameType_DrawChoices(gTasks[taskId].tWindowFrameType);
             break;
         case MENUITEM_FASTFORWARD:
-            if (JOY_NEW(DPAD_LEFT | DPAD_RIGHT))
-            {
-                gTasks[taskId].tFastForward ^= 1;
-                sArrowPressed = TRUE;
+            previousOption = gTasks[taskId].tFastForward;
+            gTasks[taskId].tFastForward = CycleThreeChoices(previousOption);
+            if (previousOption != gTasks[taskId].tFastForward)
                 FastForward_DrawChoices(gTasks[taskId].tFastForward);
-            }
             break;
         default:
             return;
@@ -388,7 +387,7 @@ static void Task_OptionMenuSave(u8 taskId)
     gSaveBlock2Ptr->optionsSound = gTasks[taskId].tSound;
     gSaveBlock2Ptr->optionsButtonMode = gTasks[taskId].tButtonMode;
     gSaveBlock2Ptr->optionsWindowFrameType = gTasks[taskId].tWindowFrameType;
-    gSaveBlock2Ptr->optionsFastForward = gTasks[taskId].tFastForward;
+    gSaveBlock2Ptr->optionsGameSpeed = gTasks[taskId].tFastForward;
 
     BeginNormalPaletteFade(PALETTES_ALL, 0, 0, 16, RGB_BLACK);
     gTasks[taskId].func = Task_OptionMenuFadeOut;
@@ -431,12 +430,15 @@ static void DrawOptionMenuChoice(const u8 *text, u8 x, u8 y, u8 style)
 static void FastForward_DrawChoices(u8 selection)
 {
     const u8 *normal = COMPOUND_STRING("{COLOR GREEN}{SHADOW LIGHT_GREEN}1x");
-    const u8 *fast = COMPOUND_STRING("{COLOR GREEN}{SHADOW LIGHT_GREEN}2x");
-    DrawOptionMenuChoice(normal, 104, YPOS_FASTFORWARD, !selection);
-    DrawOptionMenuChoice(fast, GetStringRightAlignXOffset(FONT_NORMAL, fast, 198), YPOS_FASTFORWARD, selection);
+    const u8 *doubleSpeed = COMPOUND_STRING("{COLOR GREEN}{SHADOW LIGHT_GREEN}2x");
+    const u8 *quadSpeed = COMPOUND_STRING("{COLOR GREEN}{SHADOW LIGHT_GREEN}4x");
+
+    DrawOptionMenuChoice(normal, 104, YPOS_FASTFORWARD, selection == OPTIONS_GAME_SPEED_1X);
+    DrawOptionMenuChoice(doubleSpeed, 146, YPOS_FASTFORWARD, selection == OPTIONS_GAME_SPEED_2X);
+    DrawOptionMenuChoice(quadSpeed, GetStringRightAlignXOffset(FONT_NORMAL, quadSpeed, 198), YPOS_FASTFORWARD, selection == OPTIONS_GAME_SPEED_4X);
 }
 
-static u8 TextSpeed_ProcessInput(u8 selection)
+static u8 CycleThreeChoices(u8 selection)
 {
     if (JOY_NEW(DPAD_RIGHT))
     {
@@ -608,29 +610,6 @@ static void FrameType_DrawChoices(u8 selection)
 
     DrawOptionMenuChoice(gText_FrameType, 104, YPOS_FRAMETYPE, 0);
     DrawOptionMenuChoice(text, 128, YPOS_FRAMETYPE, 1);
-}
-
-static u8 ButtonMode_ProcessInput(u8 selection)
-{
-    if (JOY_NEW(DPAD_RIGHT))
-    {
-        if (selection <= 1)
-            selection++;
-        else
-            selection = 0;
-
-        sArrowPressed = TRUE;
-    }
-    if (JOY_NEW(DPAD_LEFT))
-    {
-        if (selection != 0)
-            selection--;
-        else
-            selection = 2;
-
-        sArrowPressed = TRUE;
-    }
-    return selection;
 }
 
 static void ButtonMode_DrawChoices(u8 selection)
