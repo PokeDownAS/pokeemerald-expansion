@@ -1856,7 +1856,7 @@ static void OverworldBasic(void)
     BuildOamBuffer();
     UpdatePaletteFade();
     // The tileset DMA queue is consumed at VBlank. Keep it for the full frame.
-    if (!gIsExtraGameplayTick)
+    if (!gExtraGameplayTicksRemaining)
         UpdateTilesetAnimations();
     DoScheduledBgTilemapCopiesToVram();
     // Every minute if no palette fade is active, update TOD blending as needed
@@ -1876,7 +1876,8 @@ static void OverworldBasic(void)
             ApplyWeatherColorMapIfIdle(gWeatherPtr->colorMapIndex);
         }
     }
-    UpdateOverworldWildEncounter();
+    if (WE_OW_ENCOUNTERS || !gExtraGameplayTicksRemaining)
+        UpdateOverworldWildEncounter();
 }
 
 // This CB2 is used when starting

@@ -322,6 +322,10 @@ void BuildOamBuffer(void)
     u32 skippedSpritesN = 0;
     u32 matrices = 0;
 
+    // Intermediate simulation steps have no display frame of their own.
+    if (gExtraGameplayTicksRemaining > 1)
+        return;
+
     for (i = 0; i < MAX_SPRITES; i++)
     {
         // Reuse existing sSpriteOrder because we expect the order to be

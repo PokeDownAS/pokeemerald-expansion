@@ -1,8 +1,8 @@
 #ifndef GUARD_MAIN_H
 #define GUARD_MAIN_H
 
-// True only during the extra simulation step of an accelerated frame.
-extern bool8 gIsExtraGameplayTick;
+// Counts down to one on the final extra tick. Zero during a normal tick.
+extern u8 gExtraGameplayTicksRemaining;
 
 typedef void (*MainCallback)(void);
 typedef void (*IntrCallback)(void);

@@ -192,7 +192,7 @@ void PlayFanfareByFanfareNum(u8 fanfareNum)
 
 bool8 WaitFanfare(bool8 stop)
 {
-    if (gIsExtraGameplayTick)
+    if (gExtraGameplayTicksRemaining)
         return FALSE;
     if (sFanfareCounter)
     {
@@ -238,7 +238,7 @@ bool8 IsFanfareTaskInactive(void)
 
 static void Task_Fanfare(u8 taskId)
 {
-    if (gIsExtraGameplayTick)
+    if (gExtraGameplayTicksRemaining)
         return;
     if (gTestRunnerHeadless)
     {
@@ -534,7 +534,7 @@ bool8 IsCryPlaying(void)
 
 void Task_DuckBGMForPokemonCry(u8 taskId)
 {
-    if (gIsExtraGameplayTick)
+    if (gExtraGameplayTicksRemaining)
         return;
     if (gPokemonCryBGMDuckingCounter)
     {

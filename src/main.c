@@ -75,11 +75,11 @@ COMMON_DATA s8 gPcmDmaCounter = 0;
 COMMON_DATA void *gAgbMainLoop_sp = NULL;
 
 static EWRAM_DATA u16 sTrainerId = 0;
-EWRAM_DATA bool8 gIsExtraGameplayTick = FALSE;
+EWRAM_DATA u8 gExtraGameplayTicksRemaining = 0;
 
 //EWRAM_DATA void (**gFlashTimerIntrFunc)(void) = NULL;
 
-static void UpdateLinkAndCallCallbacks(void);
+static bool32 UpdateLinkAndCallCallbacks(void);
 static void InitMainCallbacks(void);
 static void CallCallbacks(void);
 #ifdef BUGFIX
@@ -138,6 +138,7 @@ void AgbMainLoop(void)
 {
     for (;;)
     {
+        bool32 frameElapsed = FALSE;
         ReadKeys();
 
         if (gSoftResetDisabled == FALSE
@@ -158,10 +159,11 @@ void AgbMainLoop(void)
         else
         {
             gLinkTransferringData = FALSE;
-            UpdateLinkAndCallCallbacks();
+            frameElapsed = UpdateLinkAndCallCallbacks();
 
             if (Overworld_RecvKeysFromLinkIsRunning() == TRUE)
             {
+                frameElapsed = FALSE;
                 gMain.newKeys = 0;
                 ClearSpriteCopyRequests();
                 gLinkTransferringData = TRUE;
@@ -172,27 +174,30 @@ void AgbMainLoop(void)
 
         PlayTimeCounter_Update();
         MapMusicMain();
-        WaitForVBlank();
+        if (!frameElapsed)
+            WaitForVBlank();
     }
 }
 
-static void UpdateLinkAndCallCallbacks(void)
+static bool32 UpdateLinkAndCallCallbacks(void)
 {
+    u32 frameStart = gMain.vblankCounter1;
     MainCallback scene = gMain.callback2;
     MainCallback input = gMain.callback1;
 
     if (HandleLinkConnection())
-        return;
+        return FALSE;
 
     CallCallbacks();
 
     u32 speed = gSaveBlock2Ptr->optionsGameSpeed;
-    if (speed == OPTIONS_GAME_SPEED_1X || speed > OPTIONS_GAME_SPEED_4X || gTestRunnerEnabled)
-        return;
+    if (speed == OPTIONS_GAME_SPEED_1X || gTestRunnerEnabled)
+        return FALSE;
 
-    // Index values 0, 1 and 2 represent one, two and four ticks per frame.
+    // The saved index selects 1, 2, 4 or 8 gameplay ticks per display frame.
     u32 ticks = 1u << speed;
-    for (u32 i = 1; i < ticks; i++)
+    u32 i;
+    for (i = 1; i < ticks; i++)
     {
         // A step can enter a menu, start a fade or switch callbacks.
         if (gMain.callback2 != scene || gMain.callback1 != input || gPaletteFade.active
@@ -210,10 +215,13 @@ static void UpdateLinkAndCallCallbacks(void)
         gMain.newKeysRaw = 0;
         gMain.newKeys = 0;
         gMain.newAndRepeatedKeys = 0;
-        gIsExtraGameplayTick = TRUE;
+        gExtraGameplayTicksRemaining = ticks - i;
         CallCallbacks();
     }
-    gIsExtraGameplayTick = FALSE;
+    gExtraGameplayTicksRemaining = 0;
+    // If all eight ticks crossed VBlank, the audio and display have already
+    // advanced. Waiting for another VBlank would discard a whole frame.
+    return speed == OPTIONS_GAME_SPEED_8X && i == ticks && gMain.vblankCounter1 != frameStart;
 }
 
 static void InitMainCallbacks(void)
