@@ -1,6 +1,9 @@
 #ifndef GUARD_MAIN_H
 #define GUARD_MAIN_H
 
+// True only during the extra simulation step of an accelerated frame.
+extern bool8 gIsExtraGameplayTick;
+
 typedef void (*MainCallback)(void);
 typedef void (*IntrCallback)(void);
 typedef void (*IntrFunc)(void);

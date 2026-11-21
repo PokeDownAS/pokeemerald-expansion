@@ -1855,7 +1855,9 @@ static void OverworldBasic(void)
     UpdateCameraPanning();
     BuildOamBuffer();
     UpdatePaletteFade();
-    UpdateTilesetAnimations();
+    // The tileset DMA queue is consumed at VBlank. Keep it for the full frame.
+    if (!gIsExtraGameplayTick)
+        UpdateTilesetAnimations();
     DoScheduledBgTilemapCopiesToVram();
     // Every minute if no palette fade is active, update TOD blending as needed
     if (!gPaletteFade.active && --gTimeUpdateCounter <= 0)

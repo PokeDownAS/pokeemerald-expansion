@@ -10,6 +10,7 @@
 #include "scanline_effect.h"
 #include "overworld.h"
 #include "play_time.h"
+#include "palette.h"
 #include "random.h"
 #include "dma3.h"
 #include "gba/flash_internal.h"
@@ -18,6 +19,7 @@
 #include "agb_flash.h"
 #include "sound.h"
 #include "battle.h"
+#include "battle_main.h"
 #include "battle_controllers.h"
 #include "text.h"
 #include "intro.h"
@@ -73,6 +75,7 @@ COMMON_DATA s8 gPcmDmaCounter = 0;
 COMMON_DATA void *gAgbMainLoop_sp = NULL;
 
 static EWRAM_DATA u16 sTrainerId = 0;
+EWRAM_DATA bool8 gIsExtraGameplayTick = FALSE;
 
 //EWRAM_DATA void (**gFlashTimerIntrFunc)(void) = NULL;
 
@@ -175,8 +178,35 @@ void AgbMainLoop(void)
 
 static void UpdateLinkAndCallCallbacks(void)
 {
-    if (!HandleLinkConnection())
-        CallCallbacks();
+    MainCallback scene = gMain.callback2;
+    MainCallback input = gMain.callback1;
+
+    if (HandleLinkConnection())
+        return;
+
+    CallCallbacks();
+
+    // Only advance a stable single-player scene. Audio, link traffic, key repeat
+    // and the play clock still run once per outer frame.
+    if (!gSaveBlock2Ptr->optionsFastForward || gTestRunnerEnabled
+     || gMain.callback2 != scene || gMain.callback1 != input || gPaletteFade.active
+     || gLinkTransferringData || gReceivedRemoteLinkPlayers || gWirelessCommType)
+        return;
+    if (scene == BattleMainCB2)
+    {
+        if (!gMain.inBattle || (gBattleTypeFlags & (BATTLE_TYPE_LINK | BATTLE_TYPE_RECORDED)))
+            return;
+    }
+    else if (scene != CB2_Overworld || input != CB1_Overworld)
+        return;
+
+    // A tap or a menu repeat belongs to just one step. Held directions carry on.
+    gMain.newKeysRaw = 0;
+    gMain.newKeys = 0;
+    gMain.newAndRepeatedKeys = 0;
+    gIsExtraGameplayTick = TRUE;
+    CallCallbacks();
+    gIsExtraGameplayTick = FALSE;
 }
 
 static void InitMainCallbacks(void)
