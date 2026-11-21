@@ -1,176 +1,180 @@
-#!/usr/bin/env python3
+"""Build the playable Hoenn encounter tables from the enabled species families."""
 import json
 import re
+import subprocess
+from collections import Counter
 from pathlib import Path
+from zlib import crc32
 
 ROOT = Path(__file__).resolve().parents[2]
 WILD = ROOT / "src/data/wild_encounters.json"
-SPECIES_DIR = ROOT / "src/data/pokemon/species_info"
-FIELDS = ("land_mons", "water_mons", "rock_smash_mons", "fishing_mons")
+ROUTES = dict(enumerate([
+    3, 4, 5, 7, 26, 12, 26, 27, 13, 14, 22, 19, 21, 22, 28, 9, 16,
+    28, 29, 31, 32, 32, 33, 35, 36, 38, 38, 39, 40, 40, 41, 42, 42, 42,
+], 101))
+AREAS = [
+    ('PETALBURG_WOODS', 7), ('RUSTURF', 9), ('GRANITE', 12), ('DEWFORD', 12),
+    ('SLATEPORT', 14), ('PETALBURG_CITY', 7), ('MIRAGE_TOWER', 22),
+    ('FIERY_PATH', 19), ('JAGGED', 23), ('NEW_MAUVILLE', 30), ('ABANDONED', 29),
+    ('MT_PYRE', 32), ('LILYCOVE', 33), ('MOSSDEEP', 36), ('SHOAL', 36),
+    ('MAGMA_HIDEOUT', 35), ('UNDERWATER', 38), ('SEAFLOOR', 40), ('ORIGIN', 42),
+    ('PACIFIDLOG', 41), ('SOOTOPOLIS', 42), ('SKY_PILLAR', 44),
+    ('EVER_GRANDE', 44), ('VICTORY_ROAD', 46), ('STEVENS_CAVE', 58),
+    ('METEOR_FALLS_1F_1R', 22), ('METEOR_FALLS', 44), ('SAFARI_ZONE_NORTHEAST', 52),
+    ('SAFARI_ZONE_SOUTHEAST', 52), ('SAFARI', 32), ('ARTISAN', 55),
+    ('DESERT_UNDERPASS', 54), ('ALTERING', 57),
+]
+THEMES = [
+    ('FIERY MAGMA JAGGED ROUTE112 ROUTE113', 'FIRE GROUND ROCK STEEL'),
+    ('MIRAGE DESERT ROUTE111', 'GROUND ROCK BUG'),
+    ('MT_PYRE', 'GHOST DARK PSYCHIC FAIRY'), ('SHOAL', 'ICE WATER ROCK'),
+    ('NEW_MAUVILLE', 'ELECTRIC STEEL POISON'), ('SKY_PILLAR', 'DRAGON FLYING PSYCHIC'),
+    ('PETALBURG_WOODS ROUTE119 ROUTE120', 'BUG GRASS FLYING'),
+    ('METEOR GRANITE RUSTURF VICTORY', 'ROCK STEEL FIGHTING DRAGON GROUND'),
+    ('SEAFLOOR ORIGIN', 'GROUND ROCK WATER DARK'), ('SAFARI', 'NORMAL GRASS FIGHTING FLYING'),
+]
+# These tables can disappear, require a rare island, or have no reliable floor encounters.
+OPTIONAL = ('UNUSED', 'MIRAGE_TOWER', 'CAVE_OF_ORIGIN', 'ROUTE130', 'GRANITE_CAVE_STEVENS_ROOM')
+ANCHORS = {
+    'ROUTE103': 'WINGULL TAILLOW PATRAT', 'ROUTE104': 'PIDGEY BUNNELBY SEEDOT',
+    'ROUTE110': 'ELECTRIKE PLUSLE MINUN', 'ROUTE111': 'SANDSHREW TRAPINCH CACNEA BALTOY',
+    'ROUTE112': 'NUMEL MACHOP', 'ROUTE114': 'SWABLU ZANGOOSE SEVIPER',
+    'ROUTE116': 'NINCADA SKITTY', 'ROUTE117': 'ROSELIA VOLBEAT ILLUMISE',
+    'ROUTE119': 'TROPIUS KECLEON', 'ROUTE120': 'ABSOL LINOONE',
+    'ROUTE121': 'GLOOM KECLEON', 'SKY_PILLAR_1F': 'ALTARIA CLAYDOL',
+    'VICTORY_ROAD_1F': 'LAIRON HARIYAMA', 'SEAFLOOR_CAVERN_ROOM1': 'GOLBAT GRAVELER',
+    'ROUTE101': 'ZIGZAGOON POOCHYENA STARLY SENTRET SHROOMISH MAREEP',
+    'ROUTE102': 'LOTAD SURSKIT WOOPER MARILL BUDEW PSYDUCK RALTS',
+    'PETALBURG_WOODS': 'WURMPLE SHROOMISH SLAKOTH', 'RUSTURF_TUNNEL': 'WHISMUR',
+    'GRANITE_CAVE_1F': 'MAKUHITA ZUBAT', 'GRANITE_CAVE_B2F': 'ARON SABLEYE',
+    'FIERY_PATH': 'NUMEL SLUGMA', 'ROUTE113': 'SPINDA SKARMORY',
+    'NEW_MAUVILLE_INSIDE': 'MAGNEMITE VOLTORB', 'MT_PYRE_1F': 'SHUPPET DUSKULL',
+    'SHOAL_CAVE_LOW_TIDE_ICE_ROOM': 'SNORUNT SPHEAL',
+}
+COASTAL = set('DRATINI DRAGONAIR DRAGONITE LUGIA LATIAS LATIOS SURSKIT MASQUERAIN STUNFISK PINCURCHIN DHELMISE CRESSELIA INKAY MALAMAR EISCUE DRAGALGE KILOWATTREL WATTREL CRAMORANT DRAGAPULT DRAKLOAK DREEPY BEARTIC CUBCHOO DRAGALGE TYNAMO EELEKTRIK EELEKTROSS'.split())
 
 
-def catalog():
-    info = {}
-    marker = re.compile(r"\[(SPECIES_[A-Z0-9_]+)\]\s*=")
-    for gen in range(1, 10):
-        path = SPECIES_DIR / f"gen_{gen}_families.h"
-        if not path.exists():
+def species_catalog():
+    # Expand shared form macros before reading Pokédex numbers (e.g. Flabébé and Arceus).
+    headers = ['config/species_enabled.h'] + [
+        f'data/pokemon/species_info/gen_{n}_families.h' for n in range(1, 10)]
+    source = '#define TRUE 1\n' + '\n'.join(f'#include "{h}"' for h in headers)
+    raw = subprocess.check_output(['cpp', '-P', '-Iinclude', '-Isrc', '-'], cwd=ROOT,
+                                  input=source, text=True)
+    blocks = re.split(r'\[(SPECIES_\w+)\]\s*=\s*\{', raw)
+    species = {}
+    for symbol, block in zip(blocks[1::2], blocks[2::2]):
+        dex = re.search(r'\.natDexNum\s*=\s*NATIONAL_DEX_(\w+)', block)
+        if not dex or dex[1] in species:
             continue
-        text = path.read_text()
-        marks = list(marker.finditer(text))
-        for i, match in enumerate(marks):
-            end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
-            block = text[match.start():end]
-            stats = []
-            for key in ("baseHP", "baseAttack", "baseDefense", "baseSpeed", "baseSpAttack", "baseSpDefense"):
-                sm = re.search(rf"\.{key}\s*=\s*(\d+)", block)
-                stats.append(int(sm.group(1)) if sm else 80)
-            cm = re.search(r"\.catchRate\s*=\s*(\d+)", block)
-            catch = int(cm.group(1)) if cm else 45
-            bst = sum(stats)
-            if catch <= 10 or bst >= 600:
-                rank = 4
-            elif catch <= 45 or bst >= 530:
-                rank = 3
-            elif bst >= 450:
-                rank = 2
-            elif bst >= 350:
-                rank = 1
-            else:
-                rank = 0
-            info[match.group(1)] = rank
-    return info
+        name = dex[1]
+        types = set(re.findall(r'TYPE_(\w+)', re.search(r'\.types\s*=\s*(?:MON_TYPES\(|\{)([^})]*)', block)[1]))
+        stats = [int(re.findall(r'\d+', value.split('?')[-1].split(':')[0])[0])
+                 for value in re.findall(r'\.base(?:HP|Attack|Defense|Speed|SpAttack|SpDefense)\s*=\s*([^,]+)', block)]
+        special = bool(re.search(r'\.is(?:Mythical|SubLegendary|RestrictedLegendary|UltraBeast|Paradox)\s*=\s*1', block))
+        bst = sum(stats)
+        level = 53 if special else max(4, min(46, (bst - 260) // 6))
+        species[name] = (symbol, types, level, special)
+    expected = set(re.findall(r'^\s*NATIONAL_DEX_(\w+),', (ROOT/'include/constants/pokedex.h').read_text(), re.M)) - {'NONE'}
+    assert set(species) == expected and len(expected) == 1025, expected - species.keys()
+    return species
 
 
-def map_tier(name):
-    if any(x in name for x in ("ARTISAN_CAVE", "ALTERING_CAVE", "DESERT_UNDERPASS", "BATTLE_FRONTIER")):
-        return 4
-    if any(x in name for x in ("VICTORY_ROAD", "SKY_PILLAR", "EVER_GRANDE", "CAVE_OF_ORIGIN", "SEAFLOOR_CAVERN", "SHOAL_CAVE")):
-        return 3
-    m = re.search(r"MAP_ROUTE(\d+)", name)
-    if m:
-        route = int(m.group(1))
-        if route >= 124:
-            return 3
-        if route >= 111:
-            return 2
-        if route >= 105:
-            return 1
-        return 0
-    if any(x in name for x in ("MT_PYRE", "METEOR_FALLS", "FIERY_PATH", "JAGGED_PASS", "NEW_MAUVILLE", "MT_CHIMNEY")):
-        return 2
-    if any(x in name for x in ("GRANITE_CAVE", "RUSTURF_TUNNEL")):
-        return 1
-    if "PETALBURG_WOODS" in name:
-        return 0
-    return 2
-
-
-def desired_min_tier(rank):
-    if rank >= 4:
-        return 3
-    if rank == 3:
-        return 1
-    return 0
-
-
-def slot_floor(tier):
-    return (3, 10, 20, 30, 42)[tier]
-
-
-def specialize_opening_routes(slots):
-    routes = {
-        "MAP_ROUTE101": "ZIGZAGOON POOCHYENA STARLY SENTRET SHROOMISH MAREEP FLETCHLING DRIFLOON SPRITZEE SWIRLIX MASCHIFF NUZLEAF",
-        "MAP_ROUTE102": "LOTAD SURSKIT WOOPER MARILL BUDEW PSYDUCK RALTS SKIPLOOM STARAVIA STUFFUL DEERLING_SPRING DOTTLER",
-    }
-    land = [slot for slot in slots if slot["field"] == "land_mons"]
-    for area, lineup in routes.items():
-        local = [slot for slot in land if slot["map"] == area]
-        targets = ["SPECIES_" + name for name in lineup.split()]
-        if len(local) != len(targets):
-            raise ValueError(f"Unexpected slot count on {area}")
-        for slot, target in zip(local, targets):
-            slot["mon"]["species"] = target
-
+def location(area, field, index):
+    route = re.fullmatch(r'ROUTE(\d+)', area)
+    level = ROUTES[int(route[1])] if route else next(v for key, v in AREAS if key in area)
+    if field == 'fishing_mons':
+        level = max(level, 36 if index >= 5 else 26 if index >= 2 else 10)
+    if field == 'water_mons':
+        level = max(level, 26)
+    if field == 'rock_smash_mons':
+        level = max(level, 18)
+    if any(x in area for x in ('B2F', 'ICE_ROOM', 'SUMMIT', '5F', '6F')):
+        level += 2
+    return level
 
 
 def main():
-    ranks = catalog()
+    species = species_catalog()
     data = json.loads(WILD.read_text())
-    group = next(x for x in data["wild_encounter_groups"] if x.get("label") == "gWildMonHeaders")
+    group = next(g for g in data['wild_encounter_groups'] if g['label'] == 'gWildMonHeaders')
     slots = []
-    before_species = []
-    for enc in group["encounters"]:
-        tier = map_tier(enc.get("map", ""))
-        for field in FIELDS:
-            table = enc.get(field)
-            if not table:
-                continue
-            mons = table.get("mons", [])
-            for idx, mon in enumerate(mons):
-                before_species.append(mon["species"])
-                slots.append({"mon": mon, "tier": tier, "field": field, "idx": idx, "map": enc.get("map", "")})
-
-    moved = 0
-    # Move truly powerful/rare species out of maps that are too early by swapping
-    # them with ordinary Pokemon from later maps. Swapping preserves complete dex coverage.
-    offenders = [s for s in slots if s["tier"] < desired_min_tier(ranks.get(s["mon"]["species"], 0))]
-    for early in offenders:
-        rank = ranks.get(early["mon"]["species"], 0)
-        need = desired_min_tier(rank)
-        candidates = []
-        for late in slots:
-            late_rank = ranks.get(late["mon"]["species"], 0)
-            if late["tier"] < need:
-                continue
-            if late_rank > 1:
-                continue
-            same_field = int(late["field"] == early["field"])
-            rare_slot = late["idx"]
-            candidates.append((same_field, late["tier"], rare_slot, late))
-        if not candidates:
+    assigned = {}
+    counts = Counter()
+    local = set()
+    for entry in group['encounters']:
+        label = entry['base_label']
+        if 'FireRed' in label or 'LeafGreen' in label:
             continue
-        late = max(candidates, key=lambda x: (x[0], x[1], x[2]))[3]
-        early["mon"]["species"], late["mon"]["species"] = late["mon"]["species"], early["mon"]["species"]
-        moved += 1
+        area = entry['map'].removeprefix('MAP_')
+        theme = next((set(types.split()) for keys, types in THEMES
+                      if any(k in area for k in keys.split())), {'NORMAL','FLYING','GRASS','BUG','FAIRY'})
+        for field in group['fields']:
+            method = field['type']
+            if method not in entry:
+                continue
+            for i, mon in enumerate(entry[method]['mons']):
+                level = location(area, method, i)
+                rate = field['encounter_rates'][i]
+                safe = not any(k in area for k in OPTIONAL)
+                # Underwater grass uses the surfing encounter table. Don't rely on
+                # gated ship interiors or ocean fishing while submerged for coverage.
+                if 'ABANDONED' in area or (area in {'SHOAL_CAVE_LOW_TIDE_ENTRANCE_ROOM','SHOAL_CAVE_LOW_TIDE_INNER_ROOM'} and method != 'land_mons') or ('UNDERWATER' in area and method != 'water_mons'):
+                    safe = False
+                slots.append((label, method, level, rate, theme, mon, safe))
+                anchors = ANCHORS.get(area, '').split() if method == 'land_mons' else []
+                if i < len(anchors):
+                    assigned[len(slots)-1] = anchors[i]
+                    counts[anchors[i]] += 1
+                    local.add((label, method, anchors[i]))
 
-    # Smooth encounter levels by area. Common Pokemon remain a bit below local trainer
-    # levels; rare species get a small premium, and late-game areas stop spawning
-    # inexplicably low-level catches.
-    adjusted = 0
-    for slot in slots:
-        mon = slot["mon"]
-        tier = slot["tier"]
-        rank = ranks.get(mon["species"], 0)
-        floor = slot_floor(tier) + min(rank, 3) * 2
-        old_min = int(mon.get("min_level", floor))
-        old_max = int(mon.get("max_level", old_min + 2))
-        new_min = max(old_min, floor)
-        new_max = max(old_max, new_min + 2)
-        if new_min != old_min or new_max != old_max:
-            mon["min_level"] = new_min
-            mon["max_level"] = new_max
-            adjusted += 1
+    def score(name, j):
+        _, types, target, special = species[name]
+        label, method, level, rate, theme, _, _ = slots[j]
+        aquatic = 'WATER' in types or name in COASTAL
+        if method in ('fishing_mons','water_mons') and not aquatic:
+            return -10000
+        if special and (level < 43 or (level < 50 and rate > 5)):
+            return -10000
+        if level < 12 and target > 22:
+            return -10000
+        habitat = 0
+        if method == 'land_mons':
+            habitat = 12 if types & theme else 0
+        elif method == 'rock_smash_mons':
+            habitat = 18 if types & {'GROUND','ROCK','STEEL','BUG','FIGHTING'} else -55
+        elif aquatic:
+            habitat = 35
+        rare = min(rate, 20) if special else 0
+        noise = crc32(f'{name}/{j}'.encode()) % 500 / 100
+        return habitat - abs(target-level)*1.5 - rare + noise
 
-    after_species = [s["mon"]["species"] for s in slots]
-    if sorted(before_species) != sorted(after_species):
-        raise RuntimeError("Encounter progression changed species coverage instead of only relocating species")
+    available = {j for j,s in enumerate(slots) if s[-1] and j not in assigned}
+    # Place constrained terrestrial species before the many fishable species.
+    order = sorted(species, key=lambda n: (not species[n][3],
+                   'WATER' in species[n][1] or n in COASTAL, -species[n][2], n))
+    for name in order:
+        if counts[name]:
+            continue
+        j = max(available, key=lambda k: score(name,k))
+        assert score(name,j) > -10000, name
+        assigned[j] = name
+        counts[name] += 1
+        local.add((*slots[j][:2],name))
+        available.remove(j)
+    for j,(label,method,level,rate,theme,mon,safe) in enumerate(slots):
+        if j not in assigned:
+            candidates = (n for n in species if (label,method,n) not in local)
+            name = max(candidates, key=lambda n: score(n,j) - counts[n]*4)
+            assigned[j] = name
+            counts[name] += 1
+            local.add((label,method,name))
+        name = assigned[j]
+        mon.update(species=species[name][0], min_level=level, max_level=level+(2 if level<20 else 4))
+    assert {assigned[j] for j,s in enumerate(slots) if s[-1]} == set(species)
+    WILD.write_text(json.dumps(data,indent=2)+'\n')
+    print(f'{len(species)} National Dex species across {len(slots)} Hoenn encounter slots')
 
-    specialize_opening_routes(slots)
-    if set(before_species) - {slot["mon"]["species"] for slot in slots}:
-        raise RuntimeError("Opening routes removed the last encounter for a species")
 
-    remaining_bad = []
-    for slot in slots:
-        rank = ranks.get(slot["mon"]["species"], 0)
-        if slot["tier"] < desired_min_tier(rank):
-            remaining_bad.append((slot["map"], slot["mon"]["species"], slot["tier"], rank))
-    if remaining_bad:
-        print(f"Encounter progression warning: {len(remaining_bad)} powerful encounters could not be relocated; first few: {remaining_bad[:5]}")
-
-    WILD.write_text(json.dumps(data, indent=2) + "\n")
-    print(f"Encounter progression: relocated {moved} early powerful encounters and adjusted levels in {adjusted} slots while preserving all species coverage.")
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

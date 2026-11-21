@@ -4,5 +4,9 @@ AlteringCave_MapScripts::
 
 AlteringCave_OnTransition:
 	setflag FLAG_LANDMARK_ALTERING_CAVE
+	addvar VAR_ALTERING_CAVE_WILD_SET, 1
+	goto_if_lt VAR_ALTERING_CAVE_WILD_SET, 9, AlteringCave_Ready
+	setvar VAR_ALTERING_CAVE_WILD_SET, 0
+AlteringCave_Ready:
 	end
 
