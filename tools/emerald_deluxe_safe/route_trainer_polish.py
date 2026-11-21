@@ -207,4 +207,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from signature_fights import main as apply_signature_fights
+
     main()
+    apply_signature_fights()
