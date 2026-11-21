@@ -1,5 +1,4 @@
 name: Emerald Deluxe Safe Build
-# Diagnostic rebuild trigger for PlusleUltra starter compile
 
 on:
   push:
@@ -64,9 +63,6 @@ jobs:
 
       - name: Apply quality-of-life features
         run: python3 tools/emerald_deluxe_safe/qol.py
-
-      - name: Add PlusleUltra custom starter
-        run: python3 tools/emerald_deluxe_safe/plusle_ultra.py
 
       - name: Build
         id: build

@@ -1691,6 +1691,8 @@ enum __attribute__((packed)) Species
     SPECIES_GLIMMORA_MEGA = 1572,
 
     SPECIES_CUSTOM_START = SPECIES_GLIMMORA_MEGA,
+    // Keep the retired Emerald Deluxe starter slot allocated for old saves.
+    SPECIES_RETIRED_DELUXE_STARTER = 1573,
     // Add any custom species between here and SPECIES_CUSTOM_END
     SPECIES_CUSTOM_END,
 

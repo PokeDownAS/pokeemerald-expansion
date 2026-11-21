@@ -9,6 +9,9 @@
 #include "overworld.h"
 #include "hall_of_fame.h"
 #include "pokemon_storage_system.h"
+#include "pokedex.h"
+#include "string_util.h"
+#include "constants/pokedex.h"
 #include "trainer_hill.h"
 #include "link.h"
 #include "constants/game_stat.h"
@@ -876,6 +879,45 @@ bool8 WriteSaveBlock1Sector(void)
     return finished;
 }
 
+// Older Emerald Deluxe saves used a custom species in Birch's middle ball.
+static const u8 sRetiredStarterName[] = _("PlusleUltr");
+
+static bool32 ConvertRetiredStarter(struct BoxPokemon *mon)
+{
+    u8 name[POKEMON_NAME_BUFFER_SIZE];
+    enum Species species = SPECIES_EEVEE;
+
+    if (!mon->hasSpecies || GetBoxMonData(mon, MON_DATA_SPECIES) != SPECIES_RETIRED_DELUXE_STARTER)
+        return FALSE;
+
+    GetBoxMonData(mon, MON_DATA_NICKNAME, name);
+    SetBoxMonData(mon, MON_DATA_SPECIES, &species);
+    if (StringCompare(name, sRetiredStarterName) == 0)
+        SetBoxMonData(mon, MON_DATA_NICKNAME, GetSpeciesName(species));
+
+    if (!mon->isEgg)
+    {
+        GetSetPokedexFlag(NATIONAL_DEX_EEVEE, FLAG_SET_SEEN);
+        GetSetPokedexFlag(NATIONAL_DEX_EEVEE, FLAG_SET_CAUGHT);
+    }
+    return TRUE;
+}
+
+static void ConvertSavedStarters(void)
+{
+    for (u32 i = 0; i < PARTY_SIZE; i++)
+    {
+        struct Pokemon *mon = GetSavedPlayerPartyMon(i);
+        if (ConvertRetiredStarter(&mon->box))
+            CalculateMonStats(mon);
+    }
+    for (u32 box = 0; box < TOTAL_BOXES_COUNT; box++)
+        for (u32 slot = 0; slot < IN_BOX_COUNT; slot++)
+            ConvertRetiredStarter(GetBoxedMonPtr(box, slot));
+    for (u32 i = 0; i < DAYCARE_MON_COUNT; i++)
+        ConvertRetiredStarter(&gSaveBlock1Ptr->daycare.mons[i].mon);
+}
+
 u8 LoadGameSave(u8 saveType)
 {
     u8 status;
@@ -892,6 +934,9 @@ u8 LoadGameSave(u8 saveType)
     case SAVE_NORMAL:
     default:
         status = TryLoadSaveSlot(FULL_SAVE_SLOT, gRamSaveSectorLocations);
+        // SAVE_STATUS_ERROR can still carry a valid backup slot.
+        if (status == SAVE_STATUS_OK || status == SAVE_STATUS_ERROR)
+            ConvertSavedStarters();
         CopyPartyAndObjectsFromSave();
         gSaveFileStatus = status;
         gGameContinueCallback = NULL;

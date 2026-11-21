@@ -473,6 +473,27 @@ static void Task_Hof_InitMonData(u8 taskId)
         gTasks[taskId].func = Task_Hof_InitTeamSaveData;
 }
 
+static bool32 LoadHallOfFameTeams(void)
+{
+    if (LoadGameSave(SAVE_HALL_OF_FAME) != SAVE_STATUS_OK)
+        return FALSE;
+
+    for (u32 team = 0; team < HALL_OF_FAME_MAX_TEAMS; team++)
+    {
+        for (u32 i = 0; i < PARTY_SIZE; i++)
+        {
+            struct HallofFameMon *mon = &gHoFSaveBuffer[team].mon[i];
+            if (mon->species == SPECIES_RETIRED_DELUXE_STARTER)
+            {
+                mon->species = SPECIES_EEVEE;
+                if (!StringCompareN(mon->nickname, COMPOUND_STRING("PlusleUltr"), POKEMON_NAME_LENGTH))
+                    StringCopy_Nickname(mon->nickname, GetSpeciesName(SPECIES_EEVEE));
+            }
+        }
+    }
+    return TRUE;
+}
+
 static void Task_Hof_InitTeamSaveData(u8 taskId)
 {
     u16 i;
@@ -484,7 +505,7 @@ static void Task_Hof_InitTeamSaveData(u8 taskId)
     }
     else
     {
-        if (LoadGameSave(SAVE_HALL_OF_FAME) != SAVE_STATUS_OK)
+        if (!LoadHallOfFameTeams())
             memset(gHoFSaveBuffer, 0, SECTOR_SIZE * NUM_HOF_SECTORS);
     }
 
@@ -855,7 +876,7 @@ void CB2_DoHallOfFamePC(void)
 static void Task_HofPC_CopySaveData(u8 taskId)
 {
     HofPCTopBar_AddWindow(0, 30, 0, 12, 0x226);
-    if (LoadGameSave(SAVE_HALL_OF_FAME) != SAVE_STATUS_OK)
+    if (!LoadHallOfFameTeams())
     {
         gTasks[taskId].func = Task_HofPC_PrintDataIsCorrupted;
     }
