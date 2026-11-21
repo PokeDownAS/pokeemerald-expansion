@@ -211,3 +211,5 @@ if __name__ == "__main__":
 
     main()
     apply_signature_fights()
+    from remaining_fights import run as apply_remaining_fights
+    apply_remaining_fights()
