@@ -130,6 +130,11 @@ LittlerootTown_ProfessorBirchsLab_EventScript_GoSeeRival::
 
 LittlerootTown_ProfessorBirchsLab_EventScript_AgreeToSeeRival::
 	msgbox LittlerootTown_ProfessorBirchsLab_Text_GetRivalToTeachYou, MSGBOX_DEFAULT
+	msgbox Birch_Text_EarlyBalls, MSGBOX_DEFAULT
+	giveitem ITEM_POKE_BALL, 5
+	goto_if_eq VAR_RESULT, FALSE, Birch_FinishDeparture
+	setflag FLAG_BIRCH_GAVE_EARLY_BALLS
+Birch_FinishDeparture:
 	clearflag FLAG_HIDE_ROUTE_101_BOY
 	setvar VAR_BIRCH_LAB_STATE, 3
 	releaseall
@@ -524,17 +529,21 @@ LittlerootTown_ProfessorBirchsLab_EventScript_GivePokedex::
 	end
 
 LittlerootTown_ProfessorBirchsLab_EventScript_MayGivePokeBalls::
+	goto_if_set FLAG_BIRCH_GAVE_EARLY_BALLS, Birch_MayCatchAdvice
 	msgbox LittlerootTown_ProfessorBirchsLab_Text_MayGotPokedexTooTakeThese, MSGBOX_DEFAULT
 	giveitem ITEM_POKE_BALL, 5
 	call_if_eq VAR_RESULT, FALSE, LittlerootTown_ProfessorBirchsLab_EventScript_MayNoRoomForPokeBalls
+Birch_MayCatchAdvice:
 	msgbox LittlerootTown_ProfessorBirchsLab_Text_CatchCutePokemonWithPokeBalls, MSGBOX_DEFAULT
 	setvar VAR_RESULT, 0
 	return
 
 LittlerootTown_ProfessorBirchsLab_EventScript_BrendanGivePokeBalls::
+	goto_if_set FLAG_BIRCH_GAVE_EARLY_BALLS, Birch_BrendanCatchAdvice
 	msgbox LittlerootTown_ProfessorBirchsLab_Text_BrendanGotPokedexTooTakeThese, MSGBOX_DEFAULT
 	giveitem ITEM_POKE_BALL, 5
 	call_if_eq VAR_RESULT, FALSE, LittlerootTown_ProfessorBirchsLab_EventScript_BrendanNoRoomForPokeBalls
+Birch_BrendanCatchAdvice:
 	msgbox LittlerootTown_ProfessorBirchsLab_Text_CatchCoolPokemonWithPokeBalls, MSGBOX_DEFAULT
 	setvar VAR_RESULT, 1
 	return
@@ -992,3 +1001,8 @@ LittlerootTown_ProfessorBirchsLab_Text_ScottAboardSSTidalCall:
 	.string "we meet. I'll be waiting!\p"
 	.string "… … … … … …\n"
 	.string "… … … … … Click!$"
+
+Birch_Text_EarlyBalls:
+	.string "Here, take these POKé BALLS.\p"
+	.string "See what you can catch on the way\n"
+	.string "to ROUTE 103!$"

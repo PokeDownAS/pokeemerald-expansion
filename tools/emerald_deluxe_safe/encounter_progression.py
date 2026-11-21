@@ -78,6 +78,22 @@ def slot_floor(tier):
     return (3, 10, 20, 30, 42)[tier]
 
 
+def specialize_opening_routes(slots):
+    routes = {
+        "MAP_ROUTE101": "ZIGZAGOON POOCHYENA STARLY SENTRET SHROOMISH MAREEP FLETCHLING DRIFLOON SPRITZEE SWIRLIX MASCHIFF NUZLEAF",
+        "MAP_ROUTE102": "LOTAD SURSKIT WOOPER MARILL BUDEW PSYDUCK RALTS SKIPLOOM STARAVIA STUFFUL DEERLING_SPRING DOTTLER",
+    }
+    land = [slot for slot in slots if slot["field"] == "land_mons"]
+    for area, lineup in routes.items():
+        local = [slot for slot in land if slot["map"] == area]
+        targets = ["SPECIES_" + name for name in lineup.split()]
+        if len(local) != len(targets):
+            raise ValueError(f"Unexpected slot count on {area}")
+        for slot, target in zip(local, targets):
+            slot["mon"]["species"] = target
+
+
+
 def main():
     ranks = catalog()
     data = json.loads(WILD.read_text())
@@ -139,6 +155,10 @@ def main():
     after_species = [s["mon"]["species"] for s in slots]
     if sorted(before_species) != sorted(after_species):
         raise RuntimeError("Encounter progression changed species coverage instead of only relocating species")
+
+    specialize_opening_routes(slots)
+    if set(before_species) - {slot["mon"]["species"] for slot in slots}:
+        raise RuntimeError("Opening routes removed the last encounter for a species")
 
     remaining_bad = []
     for slot in slots:
